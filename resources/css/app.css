@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import "@fontsource/inter"; /* Import semua varian */
+
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source "../**/*.blade.php";
+@source "../**/*.js";
+@source "../**/*.vue";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    --foreground-rgb: 30, 30, 30;  /* Abu-abu tua, lebih lembut dari hitam */
+    --background-rgb: 245, 245, 245; /* Abu-abu terang, lebih nyaman dari putih */
+}
+
+.dark {
+    --foreground-rgb: 0, 255, 180;  /* Neon cyan */
+    --background-rgb: 10, 10, 20;   /* Biru gelap */
+}
+
+body {
+    color: rgb(var(--foreground-rgb));
+    background: rgb(var(--background-rgb));
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+@theme {
+    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif,
+        "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+        "Noto Color Emoji";
+}
+
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}

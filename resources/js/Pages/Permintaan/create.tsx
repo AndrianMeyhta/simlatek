@@ -4,8 +4,8 @@ import { Head } from "@inertiajs/react";
 import Layout from "../../Layouts/layout";
 import { usePage } from "@inertiajs/react";
 import { Upload } from "lucide-react";
+import { confirmAlert, successAlert, errorAlert, toastNotification } from "../../Components/sweetAlert";
 
-// Define the shape of the form data
 interface FormData {
     title: string;
     description: string;
@@ -17,9 +17,8 @@ interface FormData {
     };
 }
 
-// Define the shape of props from usePage
 interface PageProps {
-    nomertiket?: string; // Made optional to match your original logic
+    nomertiket?: string;
 }
 
 const CreatePermintaan = () => {
@@ -80,8 +79,35 @@ const CreatePermintaan = () => {
         setDragOver((prev) => ({ ...prev, [category]: false }));
     };
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    const validateForm = () => {
+        // Check if all required fields are filled
+        if (!formData.title || !formData.anggaran) {
+            errorAlert(
+                "Data tidak lengkap",
+                "Harap isi judul dan anggaran permohonan"
+            );
+            return false;
+        }
+
+        // Check if all files are uploaded
+        if (
+            !formData.files.suratPermohonan ||
+            !formData.files.dataUsulan ||
+            !formData.files.petaPerencanaan
+        ) {
+            errorAlert(
+                "File tidak lengkap",
+                "Harap upload semua dokumen yang diperlukan"
+            );
+            return false;
+        }
+
+        return true;
+    };
+
+    const submitForm = async () => {
+        if (!validateForm()) return false;
+
         const data = new FormData();
         data.append("title", formData.title);
         data.append("description", formData.description);
@@ -92,7 +118,14 @@ const CreatePermintaan = () => {
 
         try {
             await axios.post("/permintaan", data);
-            alert("Permintaan berhasil dibuat!");
+
+            successAlert(
+                "Permohonan Berhasil",
+                "Permohonan telah berhasil diajukan"
+            );
+            toastNotification("success", "Permohonan berhasil diajukan");
+
+            // Reset form
             setFormData({
                 title: "",
                 description: "",
@@ -103,17 +136,37 @@ const CreatePermintaan = () => {
                     petaPerencanaan: null,
                 },
             });
+            // window.location.href = "/permintaan";
+            return true;
         } catch (error) {
             console.error(error);
-            alert("Gagal membuat permintaan.");
+            errorAlert(
+                "Gagal Mengajukan",
+                "Terjadi kesalahan saat mengajukan permohonan"
+            );
+            return false;
         }
+    };
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        confirmAlert(
+            "Konfirmasi Pengajuan",
+            "Apakah Anda yakin ingin mengajukan permohonan ini?",
+            submitForm,
+            "Ya, Ajukan",
+            "Batalkan",
+            "Permohonan berhasil diajukan.",
+            "Gagal mengajukan permohonan."
+        );
     };
 
     return (
         <>
             <Head title="Simlatek - Pengajuan" />
             <Layout currentActive="permohonan_pengajuan">
-                <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
+                <div className="p-6 min-h-screen">
                     <div className="max-w-4xl mx-auto">
                         <header className="mb-6">
                             <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">

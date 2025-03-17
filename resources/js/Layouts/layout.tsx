@@ -2,6 +2,7 @@ import React, { useState, useEffect, ReactNode } from "react";
 import { usePage, Link } from "@inertiajs/react";
 import { confirmAlert } from "../Components/sweetAlert";
 import axios from "axios";
+import { User, ThemeColors  } from "../types";
 import {
     Grid,
     Database,
@@ -26,23 +27,6 @@ interface MenuItem {
 interface LayoutProps {
     currentActive?: string;
     children: ReactNode;
-}
-
-interface User {
-    name: string;
-    role: string;
-}
-
-interface ThemeColors {
-    bg: string;
-    border: string;
-    text: string;
-    textSecondary: string;
-    hoverBg: string;
-    activeBg: string;
-    activeText: string;
-    separator: string;
-    cardBg: string;
 }
 
 const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {

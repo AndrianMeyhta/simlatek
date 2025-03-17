@@ -1,82 +1,9 @@
-import React, { useState, useRef } from 'react';
-import axios from 'axios';
-import Swal from 'sweetalert2';
+import React, { useState, useRef } from "react";
+import axios from "axios";
+import Swal from "sweetalert2";
 import Layout from "../../Layouts/layout";
 import { Head } from "@inertiajs/react";
-
-// Definisi Tipe (diperbarui dengan constrain_detail)
-interface User {
-    id: number;
-    name: string;
-}
-
-interface ProjectTahapan {
-    id: number;
-    name: string;
-}
-
-interface ConstrainDetail {
-    name: string;
-    // tambahkan properti lain jika ada
-}
-
-interface TahapanConstrain {
-    id: number;
-    projecttahapan_id: number;
-    constrain_type: 'schedule' | 'upload_file' | 'text';
-    constrain_detail: ConstrainDetail[]; // Array detail constrain
-    required: boolean;
-    target_table: string;
-    target_column: string;
-    status: 'pending' | 'fulfilled' | 'confirmed';
-    value?: string | null;
-    file_path?: string | null;
-}
-
-interface ProjectProgress {
-    id: number;
-    project_id: number;
-    projecttahapan_id: number;
-    status: 'not_started' | 'current' | 'completed';
-    percentage: number;
-    description?: string | null;
-    tahapan: ProjectTahapan;
-    tahapanconstrains: TahapanConstrain[];
-}
-
-interface Project {
-    id: number;
-    name: string;
-    description: string;
-    progress: ProjectProgress[];
-    dikelola: User;
-}
-
-interface Permintaan {
-    id: number;
-    nomertiket: string;
-    created_at: string;
-    users: User;
-    projects: Project;
-}
-
-interface LogAktivitas {
-    id: number;
-    projectprogress_id: number;
-    user_id: number;
-    action: string;
-    description: string;
-    created_at: string;
-    users: User;
-}
-
-interface PageProps {
-    permintaan: Permintaan;
-    project: Project;
-    projectprogresses: ProjectProgress[];
-    logAktivitas: LogAktivitas[];
-    userPermissions: number[];
-}
+import { ProjectProgress, PageProps } from "../../types";
 
 const ShowPermintaan: React.FC<PageProps> = ({
     permintaan,
@@ -85,14 +12,12 @@ const ShowPermintaan: React.FC<PageProps> = ({
     logAktivitas,
     userPermissions,
 }) => {
-    const [activeStep, setActiveStep] = useState<number | null>(null);
-    const [editConstrain, setEditConstrain] = useState<{ [key: number]: boolean }>({});
+    const [editConstrain, setEditConstrain] = useState<{
+        [key: number]: boolean;
+    }>({});
     const [isDragging, setIsDragging] = useState(false);
+    const [isLoading, setIsLoading] = useState<{ [key: string]: boolean }>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const toggleStep = (stepId: number) => {
-        setActiveStep(activeStep === stepId ? null : stepId);
-    };
 
     const toggleEditConstrain = (constrainId: number) => {
         setEditConstrain((prev) => ({
@@ -115,102 +40,151 @@ const ShowPermintaan: React.FC<PageProps> = ({
         e.preventDefault();
     };
 
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>, constrainId: number) => {
+    const handleDrop = (
+        e: React.DragEvent<HTMLDivElement>,
+        constrainId: number
+    ) => {
         e.preventDefault();
         setIsDragging(false);
         const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            const formData = new FormData();
-            formData.append('file', files[0]);
-            formData.append('constrain_type', 'upload_file');
-            formData.append('status', 'fulfilled');
-            handleEditConstrain(constrainId, formData);
-        }
+        if (files.length > 0) handleFileUpload(files[0], constrainId);
     };
 
-    const handleFileClick = () => {
-        fileInputRef.current?.click();
+    const handleFileChange = (
+        e: React.ChangeEvent<HTMLInputElement>,
+        constrainId: number
+    ) => {
+        if (e.target.files?.[0])
+            handleFileUpload(e.target.files[0], constrainId);
+    };
+
+    const handleFileUpload = (file: File, constrainId: number) => {
+        if (file.size > 10 * 1024 * 1024) {
+            Swal.fire({
+                icon: "error",
+                title: "File Terlalu Besar",
+                text: "Ukuran file maksimum adalah 10MB.",
+            });
+            return;
+        }
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("constrain_type", "upload_file"); // Sesuaikan dengan backend
+        formData.append("status", "fulfilled");
+        formData.append("project_id", project.id.toString());
+        handleEditConstrain(constrainId, formData);
     };
 
     const confirmConstrain = async (constrainId: number) => {
+        setIsLoading((prev) => ({ ...prev, [constrainId]: true }));
         Swal.fire({
-            title: 'Konfirmasi Constrain?',
-            text: 'Apakah Anda yakin data constrain sudah benar?',
-            icon: 'warning',
+            title: "Konfirmasi Constrain?",
+            text: "Apakah Anda yakin data constrain sudah benar?",
+            icon: "warning",
             showCancelButton: true,
-            confirmButtonText: 'Ya, Konfirmasi!',
-            cancelButtonText: 'Batal',
+            confirmButtonText: "Ya, Konfirmasi!",
+            cancelButtonText: "Batal",
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    await axios.post(`/permintaan/${permintaan.id}/constrain/${constrainId}/confirm`, {
-                        _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                    });
+                    await axios.post(
+                        `/permintaan/${permintaan.id}/constrain/${constrainId}/confirm`,
+                        {
+                            project_id: project.id,
+                            _token: document
+                                .querySelector('meta[name="csrf-token"]')
+                                ?.getAttribute("content"),
+                        }
+                    );
                     Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil!',
-                        text: 'Constrain berhasil dikonfirmasi.',
+                        icon: "success",
+                        title: "Berhasil!",
+                        text: "Constrain berhasil dikonfirmasi.",
                         timer: 1500,
                         showConfirmButton: false,
-                    }).then(() => {
-                        window.location.reload();
-                    });
+                    }).then(() => window.location.reload());
                 } catch (error) {
                     Swal.fire({
-                        icon: 'error',
-                        title: 'Oops...',
-                        text: 'Terjadi kesalahan saat mengonfirmasi constrain.',
+                        icon: "error",
+                        title: "Oops...",
+                        text: "Terjadi kesalahan saat mengonfirmasi constrain.",
                     });
+                } finally {
+                    setIsLoading((prev) => ({ ...prev, [constrainId]: false }));
                 }
+            } else {
+                setIsLoading((prev) => ({ ...prev, [constrainId]: false }));
             }
         });
     };
 
     const confirmStep = async (progressId: number) => {
+        setIsLoading((prev) => ({ ...prev, [progressId]: true }));
         Swal.fire({
-            title: 'Konfirmasi Tahapan?',
-            text: 'Apakah Anda yakin ingin melanjutkan ke tahapan berikutnya?',
-            icon: 'warning',
+            title: "Konfirmasi Tahapan?",
+            text: "Apakah Anda yakin ingin melanjutkan ke tahapan berikutnya?",
+            icon: "warning",
             showCancelButton: true,
-            confirmButtonText: 'Ya, Lanjutkan!',
-            cancelButtonText: 'Batal',
+            confirmButtonText: "Ya, Lanjutkan!",
+            cancelButtonText: "Batal",
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    await axios.post(`/permintaan/${permintaan.id}/confirm-step`, {
-                        projectprogressId: progressId,
-                        _token: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                    });
+                    await axios.post(
+                        `/permintaan/${permintaan.id}/confirm-step`,
+                        {
+                            projectprogressId: progressId,
+                            project_id: project.id,
+                            _token: document
+                                .querySelector('meta[name="csrf-token"]')
+                                ?.getAttribute("content"),
+                        }
+                    );
                     Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil!',
-                        text: 'Tahapan berhasil dikonfirmasi.',
+                        icon: "success",
+                        title: "Berhasil!",
+                        text: "Tahapan berhasil dikonfirmasi.",
                         timer: 1500,
                         showConfirmButton: false,
-                    }).then(() => {
-                        window.location.reload();
-                    });
+                    }).then(() => window.location.reload());
                 } catch (error) {
                     Swal.fire({
-                        icon: 'error',
-                        title: 'Oops...',
-                        text: 'Terjadi kesalahan saat mengonfirmasi tahapan.',
+                        icon: "error",
+                        title: "Oops...",
+                        text: "Terjadi kesalahan saat mengonfirmasi tahapan.",
                     });
+                } finally {
+                    setIsLoading((prev) => ({ ...prev, [progressId]: false }));
                 }
+            } else {
+                setIsLoading((prev) => ({ ...prev, [progressId]: false }));
             }
         });
     };
 
-    const handleEditConstrain = async (constrainId: number, formData: FormData) => {
+    const handleEditConstrain = async (
+        constrainId: number,
+        formData: FormData
+    ) => {
+        setIsLoading((prev) => ({ ...prev, [constrainId]: true }));
         try {
-            formData.append('_token', document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
-            await axios.post(`/permintaan/${permintaan.id}/constrain/${constrainId}`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
+            formData.append(
+                "_token",
+                document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute("content") || ""
+            );
+            await axios.post(
+                `/permintaan/${permintaan.id}/constrain/${constrainId}`,
+                formData,
+                {
+                    headers: { "Content-Type": "multipart/form-data" },
+                }
+            );
             Swal.fire({
-                icon: 'success',
-                title: 'Berhasil!',
-                text: 'Constrain berhasil diedit.',
+                icon: "success",
+                title: "Berhasil!",
+                text: "Constrain berhasil diedit.",
                 timer: 1500,
                 showConfirmButton: false,
             }).then(() => {
@@ -219,382 +193,628 @@ const ShowPermintaan: React.FC<PageProps> = ({
             });
         } catch (error) {
             Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: 'Terjadi kesalahan saat mengedit constrain.',
+                icon: "error",
+                title: "Oops...",
+                text: "Terjadi kesalahan saat mengedit constrain.",
             });
+        } finally {
+            setIsLoading((prev) => ({ ...prev, [constrainId]: false }));
+        }
+    };
+
+    const canConfirmStep = (progress: ProjectProgress) =>
+        progress.status === "current" &&
+        progress.tahapanconstrains.every((c) => c.status === "confirmed");
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case "completed":
+                return "bg-green-500";
+            case "current":
+                return "bg-blue-500";
+            case "not_started":
+                return "bg-gray-300 dark:bg-gray-600";
+            default:
+                return "bg-gray-300";
         }
     };
 
     return (
         <>
-            <Head title="Simlatek - Constrain" />
-            <Layout currentActive="constrain">
+            <Head title="Simlatek - Detail Permintaan" />
+            <Layout currentActive="permohonan_daftar">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6">
-                    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg mb-6">
-                        <div className="p-6">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{project.name}</h2>
-                                    <p className="mt-2 text-gray-600 dark:text-gray-300">{project.description}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Nomor Tiket</p>
-                                    <p className="font-medium dark:text-white">{permintaan.nomertiket}</p>
-                                </div>
+                    {/* Header Proyek */}
+                    <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg mb-6 p-6">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+                                    {project.name}
+                                </h2>
+                                <p className="mt-2 text-gray-600 dark:text-gray-300">
+                                    {project.description}
+                                </p>
                             </div>
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Pemohon</p>
-                                    <p className="font-medium dark:text-white">{permintaan.users.name}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Dikelola</p>
-                                    <p className="font-medium dark:text-white">{project.dikelola.name}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Tanggal Dibuat</p>
-                                    <p className="font-medium dark:text-white">
-                                        {new Date(permintaan.created_at).toLocaleDateString('id-ID', {
-                                            day: 'numeric',
-                                            month: 'long',
-                                            year: 'numeric',
-                                        })}
-                                    </p>
-                                </div>
+                            <div className="text-right">
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Nomor Tiket
+                                </p>
+                                <p className="font-semibold text-gray-800 dark:text-white">
+                                    {permintaan.nomertiket}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <p className="text-gray-600 dark:text-gray-400">
+                                    Pemohon
+                                </p>
+                                <p className="font-medium text-gray-800 dark:text-white">
+                                    {permintaan.users?.name ||
+                                        "Tidak diketahui"}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-gray-600 dark:text-gray-400">
+                                    Dikelola oleh
+                                </p>
+                                <p className="font-medium text-gray-800 dark:text-white">
+                                    {project.dikelola?.name ||
+                                        "Tidak diketahui"}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-gray-600 dark:text-gray-400">
+                                    Tanggal Dibuat
+                                </p>
+                                <p className="font-medium text-gray-800 dark:text-white">
+                                    {permintaan.created_at
+                                        ? new Date(
+                                              permintaan.created_at
+                                          ).toLocaleDateString("id-ID", {
+                                              day: "numeric",
+                                              month: "long",
+                                              year: "numeric",
+                                          })
+                                        : "Tidak tersedia"}
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg">
-                        <div className="p-6">
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-6">Progress Permintaan</h3>
-                            <div className="space-y-6">
-                                {projectprogresses.map((progress, index) => (
-                                    <div key={progress.id} className="relative flex items-start">
-                                        {index < projectprogresses.length - 1 && (
-                                            <div className="absolute top-8 left-4 -bottom-12 w-0.5 bg-gray-200 dark:bg-gray-700"></div>
-                                        )}
-                                        <div
-                                            className={`relative flex items-center justify-center shrink-0 w-8 h-8 rounded-full ${progress.status === 'completed'
-                                                ? 'bg-green-500'
-                                                : progress.status === 'current'
-                                                    ? 'bg-blue-500'
-                                                    : 'bg-gray-300 dark:bg-gray-600'
-                                                }`}
-                                        >
-                                            <span className="text-white text-sm">{index + 1}</span>
-                                        </div>
-                                        <div className="ml-4 flex-1">
-                                            <button
-                                                onClick={() => toggleStep(progress.projecttahapan_id)}
-                                                className="flex items-center justify-between w-full text-left"
-                                            >
-                                                <span className="text-lg font-medium text-gray-900 dark:text-white">
-                                                    {progress.tahapan.name}
-                                                </span>
-                                                <div className="flex items-center">
-                                                    <span
-                                                        className={`mr-2 ${progress.status === 'completed'
-                                                            ? 'text-green-500 dark:text-green-400'
-                                                            : progress.status === 'current'
-                                                                ? 'text-blue-500 dark:text-blue-400'
-                                                                : 'text-gray-500 dark:text-gray-400'
-                                                            }`}
-                                                    >
-                                                        {progress.percentage}%
-                                                    </span>
-                                                    <svg
-                                                        className={`w-5 h-5 transform transition-transform text-gray-500 dark:text-gray-400 ${activeStep === progress.projecttahapan_id ? 'rotate-180' : ''}`}
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        viewBox="0 0 24 24"
-                                                    >
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5 5 5M7 19l5-5 5 5" />
-                                                    </svg>
+                    {/* Progress Permintaan */}
+                    <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+                            Progress Permintaan
+                        </h3>
+                        <div className="space-y-6">
+                            {projectprogresses.length > 0 ? (
+                                projectprogresses.map((progress, index) => (
+                                    <div
+                                        key={progress.id}
+                                        className="relative bg-gray-50 dark:bg-gray-700 rounded-lg p-4 shadow-sm"
+                                    >
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center space-x-3">
+                                                <div
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white ${getStatusColor(
+                                                        progress.status
+                                                    )}`}
+                                                >
+                                                    {index + 1}
                                                 </div>
-                                            </button>
+                                                <h4 className="text-lg font-medium text-gray-900 dark:text-white">
+                                                    {progress.tahapan?.name ||
+                                                        `Tahapan ${progress.projecttahapan_id} (Tidak Diketahui)`}
+                                                </h4>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <span
+                                                    className={`text-sm font-medium ${
+                                                        progress.status ===
+                                                        "completed"
+                                                            ? "text-green-600"
+                                                            : progress.status ===
+                                                              "current"
+                                                            ? "text-blue-600"
+                                                            : "text-gray-500"
+                                                    }`}
+                                                >
+                                                    {progress.percentage}%
+                                                </span>
+                                                <span
+                                                    className={`px-2 py-1 text-xs rounded-full ${
+                                                        progress.status ===
+                                                        "completed"
+                                                            ? "bg-green-100 text-green-800"
+                                                            : progress.status ===
+                                                              "current"
+                                                            ? "bg-blue-100 text-blue-800"
+                                                            : "bg-gray-100 text-gray-800"
+                                                    }`}
+                                                >
+                                                    {progress.status ===
+                                                    "completed"
+                                                        ? "Selesai"
+                                                        : progress.status ===
+                                                          "current"
+                                                        ? "Berjalan"
+                                                        : "Belum Dimulai"}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-600 mb-4">
+                                            <div
+                                                className={`h-2.5 rounded-full ${getStatusColor(
+                                                    progress.status
+                                                )}`}
+                                                style={{
+                                                    width: `${progress.percentage}%`,
+                                                }}
+                                            ></div>
+                                        </div>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                            {progress.description ||
+                                                "Tidak ada deskripsi"}
+                                        </p>
 
-                                            {activeStep === progress.projecttahapan_id && (
-                                                <div className="mt-4 space-y-4 animate-fade-in">
-                                                    <div className="flex items-center space-x-2">
-                                                        <span
-                                                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${progress.status === 'completed'
-                                                                ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-                                                                : progress.status === 'current'
-                                                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100'
-                                                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                                                }`}
+                                        {/* Daftar Constrain */}
+                                        {progress.tahapanconstrains?.length >
+                                        0 ? (
+                                            <div className="space-y-4">
+                                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                    Constrain
+                                                </h5>
+                                                {progress.tahapanconstrains.map(
+                                                    (constrain) => (
+                                                        <div
+                                                            key={constrain.id}
+                                                            className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm"
                                                         >
-                                                            {progress.status === 'completed'
-                                                                ? 'Selesai'
-                                                                : progress.status === 'current'
-                                                                    ? 'Sedang Berjalan'
-                                                                    : 'Belum Dimulai'}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                        {progress.description || 'Belum ada deskripsi'}
-                                                    </p>
-
-                                                    <div className="space-y-4">
-                                                        {progress.tahapanconstrains.map((constrain) => (
-                                                            <div key={constrain.id} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow-sm">
-                                                                <div className="flex justify-between items-center">
-                                                                    <h4 className="text-md font-semibold text-gray-900 dark:text-white">
-                                                                        {constrain.constrain_detail[0]?.name || 'Unnamed Constrain'}
-                                                                    </h4>
-                                                                    <span
-                                                                        className={`text-sm ${constrain.status === 'confirmed'
-                                                                            ? 'text-green-600 dark:text-green-400'
-                                                                            : constrain.status === 'fulfilled'
-                                                                                ? 'text-blue-600 dark:text-blue-400'
-                                                                                : 'text-red-600 dark:text-red-400'
-                                                                            }`}
-                                                                    >
-                                                                        {constrain.status === 'confirmed'
-                                                                            ? 'Dikonfirmasi'
-                                                                            : constrain.status === 'fulfilled'
-                                                                                ? 'Terpenuhi'
-                                                                                : 'Pending'}
-                                                                    </span>
+                                                            <div className="flex justify-between items-center mb-2">
+                                                                <div className="flex items-center space-x-2">
+                                                                    {constrain.type ===
+                                                                        "schedule" && (
+                                                                        <svg
+                                                                            className="w-5 h-5 text-gray-500"
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            viewBox="0 0 24 24"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth="2"
+                                                                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                                                            />
+                                                                        </svg>
+                                                                    )}
+                                                                    {constrain.type ===
+                                                                        "upload_file" && (
+                                                                        <svg
+                                                                            className="w-6 h-6 text-gray-500"
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            strokeWidth="2"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                                                                            />
+                                                                        </svg>
+                                                                    )}
+                                                                    {constrain.type ===
+                                                                        "text" && (
+                                                                        <svg
+                                                                            className="w-5 h-5 text-gray-500"
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            viewBox="0 0 24 24"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth="2"
+                                                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                                                            />
+                                                                        </svg>
+                                                                    )}
+                                                                    <h6 className="text-md font-semibold text-gray-900 dark:text-white">
+                                                                        {constrain.name ||
+                                                                            "Unnamed Constrain"}
+                                                                    </h6>
                                                                 </div>
+                                                                <span
+                                                                    className={`text-sm font-medium ${
+                                                                        constrain.status ===
+                                                                        "confirmed"
+                                                                            ? "text-green-600"
+                                                                            : constrain.status ===
+                                                                              "fulfilled"
+                                                                            ? "text-blue-600"
+                                                                            : "text-red-600"
+                                                                    }`}
+                                                                >
+                                                                    {constrain.status ===
+                                                                    "confirmed"
+                                                                        ? "Dikonfirmasi"
+                                                                        : constrain.status ===
+                                                                          "fulfilled"
+                                                                        ? "Terpenuhi"
+                                                                        : "Pending"}
+                                                                </span>
+                                                            </div>
 
-                                                                {!editConstrain[constrain.id] ? (
-                                                                    <div className="mt-2">
-                                                                        {constrain.constrain_type === 'schedule' && (
-                                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                                                Jadwal: {constrain.value || 'Belum diisi'}
-                                                                            </p>
-                                                                        )}
-                                                                        {constrain.constrain_type === 'upload_file' && (
-                                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                                                File:{' '}
-                                                                                {constrain.file_path ? (
-                                                                                    <a
-                                                                                        href={`/storage/${constrain.file_path}`}
-                                                                                        target="_blank"
-                                                                                        className="text-blue-600 hover:underline"
-                                                                                    >
-                                                                                        Lihat File
-                                                                                    </a>
-                                                                                ) : (
-                                                                                    'Belum diunggah'
-                                                                                )}
-                                                                            </p>
-                                                                        )}
-                                                                        {constrain.constrain_type === 'text' && (
-                                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                                                Teks: {constrain.value || 'Belum diisi'}
-                                                                            </p>
-                                                                        )}
-
-                                                                        {userPermissions.includes(progress.projecttahapan_id) &&
-                                                                            progress.status === 'current' && (
-                                                                                <div className="mt-2 flex space-x-2">
-                                                                                    {constrain.status === 'pending' && (
-                                                                                        <button
-                                                                                            onClick={() => toggleEditConstrain(constrain.id)}
-                                                                                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50"
-                                                                                        >
-                                                                                            Isi/Edit
-                                                                                        </button>
-                                                                                    )}
-                                                                                    {constrain.status === 'fulfilled' && (
-                                                                                        <>
-                                                                                            <button
-                                                                                                onClick={() => confirmConstrain(constrain.id)}
-                                                                                                className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                                                                                            >
-                                                                                                Konfirmasi Constrain
-                                                                                            </button>
-                                                                                            <button
-                                                                                                onClick={() => toggleEditConstrain(constrain.id)}
-                                                                                                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50"
-                                                                                            >
-                                                                                                Edit
-                                                                                            </button>
-                                                                                        </>
-                                                                                    )}
-                                                                                </div>
+                                                            {!editConstrain[
+                                                                constrain.id
+                                                            ] ? (
+                                                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                                                    {constrain.type ===
+                                                                        "schedule" && (
+                                                                        <p>
+                                                                            Jadwal:{" "}
+                                                                            {constrain.value ||
+                                                                                "Belum diisi"}
+                                                                        </p>
+                                                                    )}
+                                                                    {constrain.type ===
+                                                                        "upload_file" && (
+                                                                        <p>
+                                                                            File:{" "}
+                                                                            {constrain.file_path ? (
+                                                                                <a
+                                                                                    href={`/storage/${constrain.file_path}`}
+                                                                                    target="_blank"
+                                                                                    className="text-blue-600 hover:underline"
+                                                                                >
+                                                                                    Lihat
+                                                                                </a>
+                                                                            ) : (
+                                                                                "Belum diunggah"
                                                                             )}
-                                                                    </div>
-                                                                ) : (
-                                                                    <form
-                                                                        onSubmit={(e) => {
-                                                                            e.preventDefault();
-                                                                            const formData = new FormData(e.currentTarget);
-                                                                            formData.append('constrain_type', constrain.constrain_type);
-                                                                            formData.append(
-                                                                                'status',
-                                                                                constrain.constrain_type === 'schedule'
-                                                                                    ? formData.get('value') ? 'fulfilled' : 'pending'
-                                                                                    : constrain.constrain_type === 'upload_file'
-                                                                                        ? formData.get('file') ? 'fulfilled' : 'pending'
-                                                                                        : formData.get('value') ? 'fulfilled' : 'pending'
-                                                                            );
-                                                                            handleEditConstrain(constrain.id, formData);
-                                                                        }}
-                                                                        className="mt-2 space-y-4"
-                                                                    >
-                                                                        {constrain.constrain_type === 'schedule' && (
-                                                                            <div className="relative">
-                                                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                                                    {constrain.constrain_detail[0]?.name || 'Jadwal'}
-                                                                                </label>
-                                                                                <div className="relative">
-                                                                                    <input
-                                                                                        type="datetime-local"
-                                                                                        name="value"
-                                                                                        defaultValue={
-                                                                                            constrain.value
-                                                                                                ? new Date(constrain.value).toISOString().slice(0, 16)
-                                                                                                : ''
+                                                                        </p>
+                                                                    )}
+                                                                    {constrain.type ===
+                                                                        "text" && (
+                                                                        <p>
+                                                                            Teks:{" "}
+                                                                            {constrain.value ||
+                                                                                "Belum diisi"}
+                                                                        </p>
+                                                                    )}
+                                                                    {userPermissions.includes(
+                                                                        progress.projecttahapan_id
+                                                                    ) &&
+                                                                        progress.status ===
+                                                                            "current" && (
+                                                                            <div className="mt-2 flex space-x-2">
+                                                                                {constrain.status ===
+                                                                                    "pending" && (
+                                                                                    <button
+                                                                                        onClick={() =>
+                                                                                            toggleEditConstrain(
+                                                                                                constrain.id
+                                                                                            )
                                                                                         }
-                                                                                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                                                                        required={constrain.required}
-                                                                                    />
-                                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                                                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                                                        </svg>
-                                                                                    </div>
-                                                                                </div>
+                                                                                        className="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200"
+                                                                                    >
+                                                                                        Isi/Edit
+                                                                                    </button>
+                                                                                )}
+                                                                                {constrain.status ===
+                                                                                    "fulfilled" && (
+                                                                                    <>
+                                                                                        <button
+                                                                                            onClick={() =>
+                                                                                                confirmConstrain(
+                                                                                                    constrain.id
+                                                                                                )
+                                                                                            }
+                                                                                            className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+                                                                                            disabled={
+                                                                                                isLoading[
+                                                                                                    constrain
+                                                                                                        .id
+                                                                                                ]
+                                                                                            }
+                                                                                        >
+                                                                                            {isLoading[
+                                                                                                constrain
+                                                                                                    .id
+                                                                                            ]
+                                                                                                ? "Mengonfirmasi..."
+                                                                                                : "Konfirmasi"}
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={() =>
+                                                                                                toggleEditConstrain(
+                                                                                                    constrain.id
+                                                                                                )
+                                                                                            }
+                                                                                            className="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200"
+                                                                                        >
+                                                                                            Edit
+                                                                                        </button>
+                                                                                    </>
+                                                                                )}
                                                                             </div>
                                                                         )}
-                                                                        {constrain.constrain_type === 'upload_file' && (
-                                                                            <div>
-                                                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                                                    {constrain.constrain_detail[0]?.name || 'Unggah File'}
-                                                                                </label>
-                                                                                <div
-                                                                                    onDragEnter={handleDragEnter}
-                                                                                    onDragOver={handleDragOver}
-                                                                                    onDragLeave={handleDragLeave}
-                                                                                    onDrop={(e) => handleDrop(e, constrain.id)}
-                                                                                    onClick={handleFileClick}
-                                                                                    className={`mt-1 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ${isDragging
-                                                                                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                                                                            : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
-                                                                                        }`}
-                                                                                >
-                                                                                    <input
-                                                                                        type="file"
-                                                                                        name="file"
-                                                                                        ref={fileInputRef}
-                                                                                        className="hidden"
-                                                                                        onChange={(e) => {
-                                                                                            if (e.target.files?.[0]) {
-                                                                                                const formData = new FormData();
-                                                                                                formData.append('file', e.target.files[0]);
-                                                                                                formData.append('constrain_type', 'upload_file');
-                                                                                                formData.append('status', 'fulfilled');
-                                                                                                handleEditConstrain(constrain.id, formData);
-                                                                                            }
-                                                                                        }}
-                                                                                        required={constrain.required && !constrain.file_path}
-                                                                                    />
-                                                                                    <div className="flex flex-col items-center space-y-2">
-                                                                                        <svg className="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0113 5a5 5 0 014.9 4.097A4 4 0 0117 16H7z" />
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 12v6m-3-3l3-3 3 3" />
-                                                                                        </svg>
-                                                                                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                                                            {isDragging
-                                                                                                ? 'Drop file di sini'
-                                                                                                : 'Drag & drop file atau klik untuk memilih'}
-                                                                                        </p>
-                                                                                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                                                                                            Maksimum 10MB
-                                                                                        </p>
-                                                                                    </div>
-                                                                                </div>
+                                                                </div>
+                                                            ) : (
+                                                                <form
+                                                                    onSubmit={(
+                                                                        e
+                                                                    ) => {
+                                                                        e.preventDefault();
+                                                                        const formData =
+                                                                            new FormData(
+                                                                                e.currentTarget
+                                                                            );
+                                                                        formData.append(
+                                                                            "constrain_type",
+                                                                            constrain.type
+                                                                        ); // Gunakan type
+                                                                        formData.append(
+                                                                            "project_id",
+                                                                            project.id.toString()
+                                                                        );
+                                                                        formData.append(
+                                                                            "status",
+                                                                            constrain.type ===
+                                                                                "schedule" ||
+                                                                                constrain.type ===
+                                                                                    "text"
+                                                                                ? formData.get(
+                                                                                      "value"
+                                                                                  )
+                                                                                    ? "fulfilled"
+                                                                                    : "pending"
+                                                                                : formData.get(
+                                                                                      "file"
+                                                                                  ) ||
+                                                                                  constrain.file_path
+                                                                                ? "fulfilled"
+                                                                                : "pending"
+                                                                        );
+                                                                        handleEditConstrain(
+                                                                            constrain.id,
+                                                                            formData
+                                                                        );
+                                                                    }}
+                                                                    className="space-y-4"
+                                                                >
+                                                                    {constrain.type ===
+                                                                        "schedule" && (
+                                                                        <div>
+                                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                                                Jadwal
+                                                                            </label>
+                                                                            <input
+                                                                                type="datetime-local"
+                                                                                name="value"
+                                                                                defaultValue={
+                                                                                    constrain.value
+                                                                                        ? new Date(
+                                                                                              constrain.value
+                                                                                          )
+                                                                                              .toISOString()
+                                                                                              .slice(
+                                                                                                  0,
+                                                                                                  16
+                                                                                              )
+                                                                                        : ""
+                                                                                }
+                                                                                className="mt-1 w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                                                                required // Sesuaikan dengan logika Anda
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    {constrain.type ===
+                                                                        "upload_file" && (
+                                                                        <div>
+                                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                                                Unggah
+                                                                                File
+                                                                            </label>
+                                                                            <div
+                                                                                onDragEnter={
+                                                                                    handleDragEnter
+                                                                                }
+                                                                                onDragOver={
+                                                                                    handleDragOver
+                                                                                }
+                                                                                onDragLeave={
+                                                                                    handleDragLeave
+                                                                                }
+                                                                                onDrop={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleDrop(
+                                                                                        e,
+                                                                                        constrain.id
+                                                                                    )
+                                                                                }
+                                                                                onClick={() =>
+                                                                                    fileInputRef.current?.click()
+                                                                                }
+                                                                                className={`mt-1 p-4 border-2 border-dashed rounded-md text-center cursor-pointer ${
+                                                                                    isDragging
+                                                                                        ? "border-blue-500 bg-blue-50"
+                                                                                        : "border-gray-300 hover:border-blue-400"
+                                                                                }`}
+                                                                            >
+                                                                                <input
+                                                                                    type="file"
+                                                                                    name="file"
+                                                                                    ref={
+                                                                                        fileInputRef
+                                                                                    }
+                                                                                    className="hidden"
+                                                                                    onChange={(
+                                                                                        e
+                                                                                    ) =>
+                                                                                        handleFileChange(
+                                                                                            e,
+                                                                                            constrain.id
+                                                                                        )
+                                                                                    }
+                                                                                    required={
+                                                                                        !constrain.file_path
+                                                                                    } // Hanya wajib jika belum ada file
+                                                                                />
+                                                                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                                                    {isDragging
+                                                                                        ? "Drop file di sini"
+                                                                                        : "Drag & drop atau klik untuk memilih"}
+                                                                                </p>
+                                                                                <p className="text-xs text-gray-500">
+                                                                                    Maks.
+                                                                                    10MB
+                                                                                </p>
                                                                                 {constrain.file_path && (
-                                                                                    <div className="mt-2 flex items-center space-x-2">
-                                                                                        <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                                                        </svg>
+                                                                                    <p className="mt-2 text-blue-600">
                                                                                         <a
                                                                                             href={`/storage/${constrain.file_path}`}
                                                                                             target="_blank"
-                                                                                            className="text-sm text-blue-600 hover:underline"
                                                                                         >
-                                                                                            Lihat file saat ini
+                                                                                            File
+                                                                                            saat
+                                                                                            ini
                                                                                         </a>
-                                                                                    </div>
+                                                                                    </p>
                                                                                 )}
                                                                             </div>
-                                                                        )}
-                                                                        {constrain.constrain_type === 'text' && (
-                                                                            <div>
-                                                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                                                                    {constrain.constrain_detail[0]?.name || 'Teks'}
-                                                                                </label>
-                                                                                <input
-                                                                                    type="text"
-                                                                                    name="value"
-                                                                                    defaultValue={constrain.value || ''}
-                                                                                    className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                                                                    required={constrain.required}
-                                                                                />
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="flex space-x-2">
-                                                                            <button
-                                                                                type="submit"
-                                                                                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200"
-                                                                            >
-                                                                                Simpan
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => toggleEditConstrain(constrain.id)}
-                                                                                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 transition-colors duration-200"
-                                                                            >
-                                                                                Batal
-                                                                            </button>
                                                                         </div>
-                                                                    </form>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                                    )}
+                                                                    {constrain.type ===
+                                                                        "text" && (
+                                                                        <div>
+                                                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                                                Teks
+                                                                            </label>
+                                                                            <input
+                                                                                type="text"
+                                                                                name="value"
+                                                                                defaultValue={
+                                                                                    constrain.value ||
+                                                                                    ""
+                                                                                }
+                                                                                className="mt-1 w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                                                                required // Sesuaikan dengan logika Anda
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="flex space-x-2">
+                                                                        <button
+                                                                            type="submit"
+                                                                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+                                                                            disabled={
+                                                                                isLoading[
+                                                                                    constrain
+                                                                                        .id
+                                                                                ]
+                                                                            }
+                                                                        >
+                                                                            {isLoading[
+                                                                                constrain
+                                                                                    .id
+                                                                            ]
+                                                                                ? "Menyimpan..."
+                                                                                : "Simpan"}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                toggleEditConstrain(
+                                                                                    constrain.id
+                                                                                )
+                                                                            }
+                                                                            className="px-4 py-2 border rounded-md text-gray-700 dark:text-gray-200 dark:border-gray-600 hover:bg-gray-50"
+                                                                        >
+                                                                            Batal
+                                                                        </button>
+                                                                    </div>
+                                                                </form>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                Tidak ada constrain untuk
+                                                tahapan ini.
+                                            </p>
+                                        )}
 
-                                                    {userPermissions.includes(progress.projecttahapan_id) &&
-                                                        progress.status === 'current' &&
-                                                        progress.tahapanconstrains.every((c) => c.status === 'confirmed') && (
-                                                            <button
-                                                                onClick={() => confirmStep(progress.id)}
-                                                                className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                                                            >
-                                                                Konfirmasi Tahapan
-                                                            </button>
-                                                        )}
-                                                </div>
+                                        {userPermissions.includes(
+                                            progress.projecttahapan_id
+                                        ) &&
+                                            canConfirmStep(progress) && (
+                                                <button
+                                                    onClick={() =>
+                                                        confirmStep(progress.id)
+                                                    }
+                                                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+                                                    disabled={
+                                                        isLoading[progress.id]
+                                                    }
+                                                >
+                                                    {isLoading[progress.id]
+                                                        ? "Mengonfirmasi..."
+                                                        : "Konfirmasi Tahapan"}
+                                                </button>
                                             )}
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-gray-500 dark:text-gray-400">
+                                    Belum ada tahapan proyek.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Log Aktivitas */}
+                    <div className="mt-6 bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                            Log Aktivitas
+                        </h3>
+                        {logAktivitas.length > 0 ? (
+                            <div className="relative">
+                                <div className="absolute top-0 bottom-0 left-2 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
+                                {logAktivitas.map((log) => (
+                                    <div
+                                        key={log.id}
+                                        className="relative flex items-start mb-6"
+                                    >
+                                        <div className="w-4 h-4 bg-blue-500 rounded-full absolute left-0 top-1"></div>
+                                        <div className="ml-8">
+                                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                                                <strong>
+                                                    {log.users?.name ||
+                                                        "Pengguna Tidak Diketahui"}
+                                                </strong>{" "}
+                                                - {log.action}:{" "}
+                                                {log.description}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {log.created_at
+                                                    ? new Date(
+                                                          log.created_at
+                                                      ).toLocaleString("id-ID")
+                                                    : "Tanggal tidak tersedia"}
+                                            </p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 bg-white dark:bg-gray-800 shadow-sm rounded-lg">
-                        <div className="p-6">
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Log Aktivitas</h3>
-                            <div className="space-y-4">
-                                {logAktivitas.map((log) => (
-                                    <div key={log.id} className="text-sm text-gray-600 dark:text-gray-300">
-                                        <p>
-                                            <strong>{log.users.name}</strong> - {log.action}: {log.description}
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            {new Date(log.created_at).toLocaleString('id-ID')}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        ) : (
+                            <p className="text-gray-500 dark:text-gray-400">
+                                Belum ada log aktivitas.
+                            </p>
+                        )}
                     </div>
                 </div>
             </Layout>

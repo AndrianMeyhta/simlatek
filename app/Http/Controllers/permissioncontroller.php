@@ -16,7 +16,7 @@ class PermissionController extends Controller
     public function batchUpdate(Request $request)
     {
         $permissions = $request->input('permissions', []);
-        
+
         // Validasi input (opsional, tapi disarankan)
         if (!is_array($permissions)) {
             return response()->json([
@@ -27,7 +27,7 @@ class PermissionController extends Controller
 
         // Begin transaction
         DB::beginTransaction();
-        
+
         try {
             foreach ($permissions as $roleId => $tahapanIds) {
                 // Pastikan $tahapanIds adalah array
@@ -37,7 +37,7 @@ class PermissionController extends Controller
 
                 // Delete existing permissions for this role
                 Permission::where('role_id', $roleId)->delete();
-                
+
                 // Insert new permissions
                 foreach ($tahapanIds as $tahapanId) {
                     Permission::create([
@@ -46,16 +46,16 @@ class PermissionController extends Controller
                     ]);
                 }
             }
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Data berhasil di-update!'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Terjadi kesalahan saat memproses permintaan: ' . $e->getMessage()

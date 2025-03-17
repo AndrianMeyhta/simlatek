@@ -98,7 +98,7 @@ class ConstrainController extends Controller
         return response()->json([
             'message' => 'Constraint berhasil diperbarui',
             'constraint' => $constraint->fresh('projectTahapan'),
-        ]);
+        ], 201);
     }
 
     public function destroy(TahapanConstrain $constraint)

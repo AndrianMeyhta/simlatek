@@ -8,53 +8,7 @@ import Layout from "../Layouts/layout";
 import { confirmAlert } from "../Components/sweetAlert";
 import PermissionManager from "../Components/permissionManager";
 import { Head } from "@inertiajs/react";
-
-// Define types for the entities and data structures
-interface Entity {
-    value: string;
-    label: string;
-}
-
-interface Column {
-    key: string;
-    label: string;
-}
-
-interface Field {
-    key: string;
-    label: string;
-    type: string;
-    required?: boolean;
-    options?: { value: string | number; label: string }[];
-}
-
-interface Role {
-    id: string | number;
-    name: string;
-}
-
-interface User {
-    id: string | number;
-    name: string;
-    email: string;
-    role?: Role;
-    role_id?: string | number;
-}
-
-interface Tahapan {
-    id: string | number;
-    name: string;
-    description: string;
-}
-
-interface Kategori {
-    id: string | number;
-    name: string;
-}
-
-interface InitialData {
-    roles?: Role[];
-}
+import { Entity, Column, Field, Role, User, Tahapan, Kategori, ManageProps } from ".././types";
 
 type EntityData = Role[] | User[] | Tahapan[] | Kategori[];
 
@@ -64,10 +18,6 @@ const fetchEntities = async (entity: string): Promise<EntityData> => {
     return response.data?.data || [];
 };
 
-// Props type for the Manage component
-interface ManageProps {
-    initialData?: InitialData;
-}
 
 const Manage: React.FC<ManageProps> = ({ initialData }) => {
     const [currentEntity, setCurrentEntity] = useState<string>("roles");
@@ -219,7 +169,7 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
         <>
             <Head title="Simlatek - Manage" />
             <Layout currentActive="database">
-                <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
+                <div className="p-6 min-h-screen">
                     <div className="max-w-7xl mx-auto">
                         <header className="mb-6">
                             <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">

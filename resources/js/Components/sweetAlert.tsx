@@ -23,56 +23,50 @@ interface ColorScheme {
     boxShadow: string;
 }
 
+// Color schemes for both themes
+const colors: Record<Theme, ColorScheme> = {
+    light: {
+        primary: "#4f46e5", // Soft indigo
+        secondary: "#6b7280", // Cool gray
+        background: "#f9fafb", // Light gray-white
+        text: "#1f2937", // Dark gray
+        border: "#d1d5db", // Light gray border
+        buttonText: "#ffffff",
+        secondaryButtonBg: "#e5e7eb", // Very light gray
+        secondaryButtonText: "#374151", // Medium gray
+        dangerButtonBg: "#dc2626", // Soft red
+        dangerButtonText: "#ffffff",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", // Subtle shadow
+    },
+    dark: {
+        primary: "#818cf8", // Soft purple-blue
+        secondary: "#9ca3af", // Light gray
+        background: "#1f2937", // Dark slate
+        text: "#e5e7eb", // Light gray
+        border: "#4b5563", // Darker gray border
+        buttonText: "#ffffff",
+        secondaryButtonBg: "#374151", // Medium slate
+        secondaryButtonText: "#d1d5db", // Light gray
+        dangerButtonBg: "#ef4444", // Vibrant yet elegant red
+        dangerButtonText: "#ffffff",
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)", // Deeper shadow
+    },
+};
+
 // Function to get current theme from localStorage
 const getTheme = (): Theme => {
-    return (
-        localStorage.getItem("theme") === "dark" ? "dark" : "light"
-    ) as Theme;
+    return (localStorage.getItem("theme") === "dark" ? "dark" : "light") as Theme;
 };
 
 // Create themed SweetAlert
 const createThemedSwal = () => {
     const isDark: boolean = getTheme() === "dark";
-
-    // Elegant color schemes for both themes
-    const colors: Record<Theme, ColorScheme> = {
-        light: {
-            primary: "#4f46e5", // Soft indigo
-            secondary: "#6b7280", // Cool gray
-            background: "#f9fafb", // Light gray-white
-            text: "#1f2937", // Dark gray
-            border: "#d1d5db", // Light gray border
-            buttonText: "#ffffff",
-            secondaryButtonBg: "#e5e7eb", // Very light gray
-            secondaryButtonText: "#374151", // Medium gray
-            dangerButtonBg: "#dc2626", // Soft red
-            dangerButtonText: "#ffffff",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", // Subtle shadow
-        },
-        dark: {
-            primary: "#818cf8", // Soft purple-blue
-            secondary: "#9ca3af", // Light gray
-            background: "#1f2937", // Dark slate
-            text: "#e5e7eb", // Light gray
-            border: "#4b5563", // Darker gray border
-            buttonText: "#ffffff",
-            secondaryButtonBg: "#374151", // Medium slate
-            secondaryButtonText: "#d1d5db", // Light gray
-            dangerButtonBg: "#ef4444", // Vibrant yet elegant red
-            dangerButtonText: "#ffffff",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)", // Deeper shadow
-        },
-    };
-
     const theme: ColorScheme = isDark ? colors.dark : colors.light;
     const fontFamily: string = "font-sans"; // Elegant sans-serif for both themes
 
-    const buttonClass: string =
-        "elegant-btn-primary px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 mx-2";
-    const secondaryButtonClass: string =
-        "elegant-btn-secondary px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 mx-2";
-    const dangerButtonClass: string =
-        "elegant-btn-danger px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 mx-2";
+    const buttonClass: string = "elegant-btn-primary px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 mx-2";
+    const secondaryButtonClass: string = "elegant-btn-secondary px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 mx-2";
+    const dangerButtonClass: string = "elegant-btn-danger px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200 mx-2";
 
     return MySwal.mixin({
         customClass: {
@@ -98,50 +92,50 @@ const createThemedSwal = () => {
         didOpen: (popup: HTMLElement) => {
             const style = document.createElement("style");
             style.textContent = `
-        .elegant-popup {
-          background-color: ${theme.background} !important;
-          color: ${theme.text} !important;
-          border: 1px solid ${theme.border} !important;
-          box-shadow: ${theme.boxShadow} !important;
-        }
-        .elegant-btn-primary {
-          background-color: ${theme.primary} !important;
-          color: ${theme.buttonText} !important;
-          border: 1px solid ${theme.primary} !important;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-        }
-        .elegant-btn-primary:hover {
-          filter: brightness(105%);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
-        }
-        .elegant-btn-secondary {
-          background-color: ${theme.secondaryButtonBg} !important;
-          color: ${theme.secondaryButtonText} !important;
-          border: 1px solid ${theme.border} !important;
-        }
-        .elegant-btn-secondary:hover {
-          background-color: ${isDark ? "#4b5563" : "#d1d5db"} !important;
-          transform: translateY(-1px);
-        }
-        .elegant-btn-danger {
-          background-color: ${theme.dangerButtonBg} !important;
-          color: ${theme.dangerButtonText} !important;
-          border: 1px solid ${theme.dangerButtonBg} !important;
-        }
-        .elegant-btn-danger:hover {
-          filter: brightness(105%);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
-        }
-        .swal2-header {
-          border-bottom: 1px solid ${theme.border} !important;
-          padding-bottom: 0.75rem;
-        }
-        .swal2-footer {
-          border-top: 1px solid ${theme.border} !important;
-        }
-      `;
+                .elegant-popup {
+                    background-color: ${theme.background} !important;
+                    color: ${theme.text} !important;
+                    border: 1px solid ${theme.border} !important;
+                    box-shadow: ${theme.boxShadow} !important;
+                }
+                .elegant-btn-primary {
+                    background-color: ${theme.primary} !important;
+                    color: ${theme.buttonText} !important;
+                    border: 1px solid ${theme.primary} !important;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+                }
+                .elegant-btn-primary:hover {
+                    filter: brightness(105%);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+                }
+                .elegant-btn-secondary {
+                    background-color: ${theme.secondaryButtonBg} !important;
+                    color: ${theme.secondaryButtonText} !important;
+                    border: 1px solid ${theme.border} !important;
+                }
+                .elegant-btn-secondary:hover {
+                    background-color: ${isDark ? "#4b5563" : "#d1d5db"} !important;
+                    transform: translateY(-1px);
+                }
+                .elegant-btn-danger {
+                    background-color: ${theme.dangerButtonBg} !important;
+                    color: ${theme.dangerButtonText} !important;
+                    border: 1px solid ${theme.dangerButtonBg} !important;
+                }
+                .elegant-btn-danger:hover {
+                    filter: brightness(105%);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+                }
+                .swal2-header {
+                    border-bottom: 1px solid ${theme.border} !important;
+                    padding-bottom: 0.75rem;
+                }
+                .swal2-footer {
+                    border-top: 1px solid ${theme.border} !important;
+                }
+            `;
             document.head.appendChild(style);
 
             return () => {
@@ -151,7 +145,7 @@ const createThemedSwal = () => {
     });
 };
 
-// Listen for theme changes
+// Setup theme listener
 const setupThemeListener = () => {
     const themeChangeListener = () => {
         customSwal = createThemedSwal();
@@ -163,17 +157,18 @@ const setupThemeListener = () => {
         }
     });
 
-    window.addEventListener(
-        "themeChanged",
-        themeChangeListener as EventListener
-    );
+    window.addEventListener("themeChanged", themeChangeListener as EventListener);
 };
 
 // Initialize SweetAlert with theme
 let customSwal = createThemedSwal();
 setupThemeListener();
 
-// Predefined alert types
+/**
+ * Display a success alert
+ * @param title - Alert title
+ * @param text - Alert message
+ */
 export const successAlert = (title?: string, text?: string) => {
     customSwal = createThemedSwal();
     const isDark: boolean = getTheme() === "dark";
@@ -188,6 +183,11 @@ export const successAlert = (title?: string, text?: string) => {
     });
 };
 
+/**
+ * Display an error alert
+ * @param title - Alert title
+ * @param text - Alert message
+ */
 export const errorAlert = (title?: string, text?: string) => {
     customSwal = createThemedSwal();
     const isDark: boolean = getTheme() === "dark";
@@ -200,6 +200,11 @@ export const errorAlert = (title?: string, text?: string) => {
     });
 };
 
+/**
+ * Display a warning alert
+ * @param title - Alert title
+ * @param text - Alert message
+ */
 export const warningAlert = (title?: string, text?: string) => {
     customSwal = createThemedSwal();
     const isDark: boolean = getTheme() === "dark";
@@ -212,6 +217,17 @@ export const warningAlert = (title?: string, text?: string) => {
     });
 };
 
+/**
+ * Display a confirmation alert with callback
+ * @param title - Alert title
+ * @param text - Alert message
+ * @param callback - Function to execute on confirmation
+ * @param confirmButtonText - Text for confirm button
+ * @param cancelButtonText - Text for cancel button
+ * @param callbackSuccess - Success message after callback
+ * @param callbackError - Error message if callback fails
+ * @param icon - Icon to display
+ */
 export const confirmAlert = (
     title?: string,
     text?: string,
@@ -253,6 +269,10 @@ export const confirmAlert = (
         });
 };
 
+/**
+ * Display a loading alert
+ * @param title - Loading message
+ */
 export const loadingAlert = (title?: string) => {
     customSwal = createThemedSwal();
     const isDark: boolean = getTheme() === "dark";
@@ -267,29 +287,29 @@ export const loadingAlert = (title?: string) => {
             const primaryColor = isDark ? "#818cf8" : "#4f46e5";
 
             style.textContent = `
-        .elegant-loading {
-          position: relative;
-          padding-bottom: 10px;
-          font-weight: normal;
-          color: ${isDark ? "#e5e7eb" : "#1f2937"};
-        }
-        .elegant-loading::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          height: 2px;
-          width: 30%;
-          background-color: ${primaryColor};
-          animation: progress 1.5s infinite ease-in-out;
-          border-radius: 2px;
-        }
-        @keyframes progress {
-          0% { left: 0; width: 0; }
-          50% { width: 30%; }
-          100% { left: 100%; width: 0; }
-        }
-      `;
+                .elegant-loading {
+                    position: relative;
+                    padding-bottom: 10px;
+                    font-weight: normal;
+                    color: ${isDark ? "#e5e7eb" : "#1f2937"};
+                }
+                .elegant-loading::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    height: 2px;
+                    width: 30%;
+                    background-color: ${primaryColor};
+                    animation: progress 1.5s infinite ease-in-out;
+                    border-radius: 2px;
+                }
+                @keyframes progress {
+                    0% { left: 0; width: 0; }
+                    50% { width: 30%; }
+                    100% { left: 100%; width: 0; }
+                }
+            `;
             document.head.appendChild(style);
 
             MySwal.showLoading();
@@ -305,7 +325,11 @@ export const loadingAlert = (title?: string) => {
     });
 };
 
-// Toast notification
+/**
+ * Display a toast notification
+ * @param icon - Toast icon
+ * @param title - Toast message
+ */
 export const toastNotification = (
     icon?: "success" | "error" | "warning" | "info" | "question",
     title?: string
@@ -329,20 +353,16 @@ export const toastNotification = (
 
             const style = document.createElement("style");
             style.textContent = `
-        .swal2-toast {
-          background-color: ${backgroundColor} !important;
-          color: ${textColor} !important;
-          border-left: 3px solid ${borderColor} !important;
-          box-shadow: ${
-              isDark
-                  ? "0 4px 8px rgba(0, 0, 0, 0.3)"
-                  : "0 4px 6px rgba(0, 0, 0, 0.1)"
-          } !important;
-        }
-        .swal2-title {
-          color: ${textColor} !important;
-        }
-      `;
+                .swal2-toast {
+                    background-color: ${backgroundColor} !important;
+                    color: ${textColor} !important;
+                    border-left: 3px solid ${borderColor} !important;
+                    box-shadow: ${isDark ? "0 4px 8px rgba(0, 0, 0, 0.3)" : "0 4px 6px rgba(0, 0, 0, 0.1)"} !important;
+                }
+                .swal2-title {
+                    color: ${textColor} !important;
+                }
+            `;
             document.head.appendChild(style);
 
             return () => {
@@ -364,7 +384,10 @@ export const toastNotification = (
     });
 };
 
-// Theme toggler function
+/**
+ * Toggle between light and dark theme
+ * @returns The new theme
+ */
 export const toggleTheme = (): Theme => {
     const currentTheme: Theme = getTheme();
     const newTheme: Theme = currentTheme === "dark" ? "light" : "dark";

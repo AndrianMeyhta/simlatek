@@ -1,25 +1,7 @@
 // resources/js/Components/CrudModal.tsx
 import React from "react";
 import { successAlert, warningAlert } from "./sweetAlert";
-
-// Define interfaces for props and field structure
-interface Field {
-    key: string;
-    label: string;
-    type: string;
-    required?: boolean;
-    options?: { value: string | number; label: string }[];
-}
-
-interface CrudModalProps {
-    show: boolean;
-    onClose: () => void;
-    title: string;
-    formData: Record<string, any>;
-    onChange: (key: string, value: any) => void;
-    onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
-    fields: Field[];
-}
+import { CrudModalProps } from "../types";
 
 const CrudModal: React.FC<CrudModalProps> = ({
     show,

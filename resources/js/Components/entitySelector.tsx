@@ -1,19 +1,6 @@
 // resources/js/Components/EntitySelector.tsx
 import React from "react";
-
-// Definisikan tipe untuk entity
-interface Entity {
-    value: string;
-    label: string;
-}
-
-// Definisikan tipe untuk props
-interface EntitySelectorProps {
-    entities: Entity[];
-    currentEntity: string;
-    onChange: (value: string) => void;
-    className?: string; // Add className as optional
-}
+import { EntitySelectorProps } from "../types";
 
 const EntitySelector: React.FC<EntitySelectorProps> = ({
     entities,

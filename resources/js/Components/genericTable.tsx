@@ -1,25 +1,6 @@
 // resources/js/Components/GenericTable.tsx
 import React from "react";
-
-// Definisikan tipe untuk kolom
-interface Column {
-    key: string;
-    label: string;
-}
-
-// Definisikan tipe untuk data item (dibuat fleksibel dengan index signature)
-interface DataItem {
-    id?: string | number; // id opsional dan bisa string atau number
-    [key: string]: any; // Memungkinkan properti dinamis
-}
-
-// Definisikan tipe untuk props
-interface GenericTableProps {
-    columns: Column[];
-    data: DataItem[];
-    onEdit: (item: DataItem) => void;
-    onDelete: (id: string | number) => void;
-}
+import { DataItem, GenericTableProps } from "../types";
 
 const GenericTable: React.FC<GenericTableProps> = ({
     columns,

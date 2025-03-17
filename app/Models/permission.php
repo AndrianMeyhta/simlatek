@@ -16,7 +16,7 @@ class permission extends Model
         return $this->belongsTo(Role::class);
     }
 
-    public function projectTahapan()
+    public function tahapan()
     {
         return $this->belongsTo(Projecttahapan::class, 'projecttahapan_id');
     }

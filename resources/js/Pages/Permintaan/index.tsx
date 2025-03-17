@@ -2,20 +2,7 @@ import React from "react";
 import { Link } from "@inertiajs/react";
 import Layout from "../../Layouts/layout";
 import { Head } from "@inertiajs/react";
-
-// Definisikan interface untuk struktur data permintaan
-interface Permintaan {
-    id: number;
-    nomertiket: string;
-    title: string;
-    status: string;
-    progress: number;
-}
-
-// Definisikan tipe untuk props komponen
-interface PermintaanIndexProps {
-    permintaans: Permintaan[];
-}
+import { PermintaanIndexProps  } from "../../types";
 
 const PermintaanIndex: React.FC<PermintaanIndexProps> = ({ permintaans }) => {
     return (

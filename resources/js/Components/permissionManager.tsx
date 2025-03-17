@@ -2,27 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { confirmAlert } from "./sweetAlert";
+import { Role, Tahapan, Permission, PermissionState  } from "../types";
 
-// Definisikan tipe data untuk response API
-interface Role {
-    id: number;
-    name: string;
-}
-
-interface Tahapan {
-    id: number;
-    name: string;
-}
-
-interface Permission {
-    role_id: number;
-    projecttahapan_id: number;
-}
-
-// Definisikan tipe untuk permission state
-interface PermissionState {
-    [roleId: number]: number[];
-}
 
 // Fungsi fetch dengan tipe return
 const fetchRoles = async (): Promise<Role[]> => {

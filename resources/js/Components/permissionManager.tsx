@@ -1,49 +1,75 @@
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Tambahkan useQueryClient
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { confirmAlert } from "./sweetAlert";
 
-const fetchRoles = async () => {
-    const response = await axios.get("/manage/roles");
+// Definisikan tipe data untuk response API
+interface Role {
+    id: number;
+    name: string;
+}
+
+interface Tahapan {
+    id: number;
+    name: string;
+}
+
+interface Permission {
+    role_id: number;
+    projecttahapan_id: number;
+}
+
+// Definisikan tipe untuk permission state
+interface PermissionState {
+    [roleId: number]: number[];
+}
+
+// Fungsi fetch dengan tipe return
+const fetchRoles = async (): Promise<Role[]> => {
+    const response = await axios.get<{ data: Role[] }>("/manage/roles");
     return response.data.data;
 };
 
-const fetchTahapans = async () => {
-    const response = await axios.get("/manage/tahapans");
+const fetchTahapans = async (): Promise<Tahapan[]> => {
+    const response = await axios.get<{ data: Tahapan[] }>("/manage/tahapans");
     return response.data.data;
 };
 
-const fetchPermissions = async () => {
-    const response = await axios.get("/manage/permissions");
+const fetchPermissions = async (): Promise<Permission[]> => {
+    const response = await axios.get<{ data: Permission[] }>(
+        "/manage/permissions"
+    );
     return response.data.data;
 };
 
-const PermissionManager = () => {
-    const queryClient = useQueryClient(); // Inisialisasi QueryClient untuk mengelola cache
+const PermissionManager: React.FC = () => {
+    const queryClient = useQueryClient();
 
-    const { data: roles, isLoading: rolesLoading } = useQuery({
+    const { data: roles, isLoading: rolesLoading } = useQuery<Role[]>({
         queryKey: ["roles"],
         queryFn: fetchRoles,
         staleTime: 1000 * 60 * 5, // 5 menit
     });
 
-    const { data: tahapans, isLoading: tahapansLoading } = useQuery({
+    const { data: tahapans, isLoading: tahapansLoading } = useQuery<Tahapan[]>({
         queryKey: ["tahapans"],
         queryFn: fetchTahapans,
         staleTime: 1000 * 60 * 5, // 5 menit
     });
 
-    const { data: permissions, isLoading: permissionsLoading } = useQuery({
+    const { data: permissions, isLoading: permissionsLoading } = useQuery<
+        Permission[]
+    >({
         queryKey: ["permissions"],
         queryFn: fetchPermissions,
-        staleTime: 0, // Data dianggap stale segera setelah di-fetch
+        staleTime: 0,
     });
 
-    const [permissionState, setPermissionState] = useState({});
+    const [permissionState, setPermissionState] = useState<PermissionState>({});
 
     useEffect(() => {
         if (permissions) {
-            const initialState = {};
+            const initialState: PermissionState = {};
             permissions.forEach((perm) => {
                 if (!initialState[perm.role_id]) {
                     initialState[perm.role_id] = [];
@@ -54,7 +80,7 @@ const PermissionManager = () => {
         }
     }, [permissions]);
 
-    const handleCheckboxChange = (roleId, tahapanId) => {
+    const handleCheckboxChange = (roleId: number, tahapanId: number): void => {
         setPermissionState((prevState) => {
             const newState = { ...prevState };
             if (!newState[roleId]) {
@@ -72,18 +98,18 @@ const PermissionManager = () => {
     };
 
     const mutation = useMutation({
-        mutationFn: (payload) =>
+        mutationFn: (payload: { permissions: PermissionState }) =>
             axios.post("/manage/permissions/batch-update", payload),
         onSuccess: () => {
-            // Invalidasi cache setelah mutasi berhasil
-            queryClient.invalidateQueries(["permissions"]);
+            // Perbaikan error pertama: gunakan tipe yang lebih spesifik
+            queryClient.invalidateQueries({ queryKey: ["permissions"] });
         },
-        onError: (error) => {
+        onError: (error: unknown) => {
             console.error("Mutation error:", error);
         },
     });
 
-    const handleSave = () => {
+    const handleSave = (): void => {
         confirmAlert(
             "Konfirmasi!",
             "Apakah Anda yakin ingin menyimpan perubahan?",
@@ -91,21 +117,27 @@ const PermissionManager = () => {
                 mutation
                     .mutateAsync({ permissions: permissionState })
                     .then(() => {
-                        // Opsional: Update state lokal langsung untuk UX instan
-                        queryClient.setQueryData(["permissions"], (oldData) => {
-                            const newPermissions = [];
-                            Object.entries(permissionState).forEach(
-                                ([roleId, tahapanIds]) => {
-                                    tahapanIds.forEach((tahapanId) => {
-                                        newPermissions.push({
-                                            role_id: parseInt(roleId),
-                                            projecttahapan_id: tahapanId,
-                                        });
-                                    });
-                                }
-                            );
-                            return newPermissions;
-                        });
+                        queryClient.setQueryData<Permission[]>(
+                            ["permissions"],
+                            (oldData) => {
+                                const newPermissions: Permission[] = [];
+                                Object.entries(permissionState).forEach(
+                                    ([roleId, tahapanIds]) => {
+                                        // Perbaikan error kedua: tambahkan tipe untuk tahapanId
+                                        tahapanIds.forEach(
+                                            (tahapanId: number) => {
+                                                newPermissions.push({
+                                                    role_id: parseInt(roleId),
+                                                    projecttahapan_id:
+                                                        tahapanId,
+                                                });
+                                            }
+                                        );
+                                    }
+                                );
+                                return newPermissions;
+                            }
+                        );
                     }),
             "Ya, Simpan",
             "Batal",
@@ -124,13 +156,13 @@ const PermissionManager = () => {
                 Kelola Permission
             </h2>
             <div className="overflow-x-auto rounded-lg">
-                <table className="w-full border-collapse  min-w-max">
+                <table className="w-full border-collapse min-w-max">
                     <thead>
                         <tr className="bg-gray-100 dark:bg-gray-700 border-b-2 border-gray-300 dark:border-neon">
                             <th className="p-3 text-left text-gray-700 dark:text-gray-100">
                                 Role
                             </th>
-                            {tahapans.map((tahapan) => (
+                            {tahapans?.map((tahapan) => (
                                 <th
                                     key={tahapan.id}
                                     className="p-3 text-left text-gray-700 dark:text-gray-100"
@@ -141,7 +173,7 @@ const PermissionManager = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {roles.map((role, index) => (
+                        {roles?.map((role, index) => (
                             <tr
                                 key={role.id}
                                 className={`border-b border-gray-300 dark:border-neon ${
@@ -153,7 +185,7 @@ const PermissionManager = () => {
                                 <td className="p-3 text-gray-800 dark:text-gray-100">
                                     {role.name}
                                 </td>
-                                {tahapans.map((tahapan) => (
+                                {tahapans?.map((tahapan) => (
                                     <td
                                         key={tahapan.id}
                                         className="p-3 text-center"

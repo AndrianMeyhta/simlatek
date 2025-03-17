@@ -1,7 +1,32 @@
-// resources/js/Components/GenericTable.jsx
+// resources/js/Components/GenericTable.tsx
 import React from "react";
 
-const GenericTable = ({ columns, data, onEdit, onDelete }) => {
+// Definisikan tipe untuk kolom
+interface Column {
+    key: string;
+    label: string;
+}
+
+// Definisikan tipe untuk data item (dibuat fleksibel dengan index signature)
+interface DataItem {
+    id?: string | number; // id opsional dan bisa string atau number
+    [key: string]: any; // Memungkinkan properti dinamis
+}
+
+// Definisikan tipe untuk props
+interface GenericTableProps {
+    columns: Column[];
+    data: DataItem[];
+    onEdit: (item: DataItem) => void;
+    onDelete: (id: string | number) => void;
+}
+
+const GenericTable: React.FC<GenericTableProps> = ({
+    columns,
+    data,
+    onEdit,
+    onDelete,
+}) => {
     console.log("GenericTable - Data:", data);
     console.log("GenericTable - Columns:", columns);
 
@@ -15,13 +40,13 @@ const GenericTable = ({ columns, data, onEdit, onDelete }) => {
         );
     }
 
-    const getNestedValue = (item, key) => {
+    const getNestedValue = (item: DataItem, key: string): string => {
         if (!key.includes(".")) {
             return item[key] ?? "N/A"; // Properti langsung
         }
 
         const keys = key.split(".");
-        let value = item;
+        let value: any = item;
         for (const k of keys) {
             value = value?.[k] ?? "N/A"; // Akses bertahap dengan fallback
             if (value === "N/A") break; // Jika undefined atau null, stop
@@ -54,7 +79,7 @@ const GenericTable = ({ columns, data, onEdit, onDelete }) => {
                     >
                         {columns.map((col) => (
                             <td
-                                key={`${item.id || 'row'}-${col.key}`}
+                                key={`${item.id || "row"}-${col.key}`}
                                 className="px-6 py-4 text-sm text-gray-900 dark:text-white"
                             >
                                 {getNestedValue(item, col.key)}
@@ -68,7 +93,7 @@ const GenericTable = ({ columns, data, onEdit, onDelete }) => {
                                 Edit
                             </button>
                             <button
-                                onClick={() => onDelete(item.id)}
+                                onClick={() => item.id && onDelete(item.id)} // Tambahkan pengecekan id
                                 className="text-red-600 hover:text-red-800"
                             >
                                 Delete

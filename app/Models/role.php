@@ -17,7 +17,13 @@ class role extends Model
     }
     public function permissions()
     {
-        return $this->belongsToMany(projecttahapan::class, 'permissions');
+        return $this->hasMany(Permission::class, 'role_id', 'id');
+    }
+
+    // Opsional: Relasi ke Projecttahapan melalui Permission
+    public function projectTahapans()
+    {
+        return $this->belongsToMany(Projecttahapan::class, 'permissions', 'role_id', 'projecttahapan_id');
     }
 
 }

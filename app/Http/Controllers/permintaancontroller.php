@@ -11,6 +11,7 @@ use App\Models\DokumenRelasi;
 use App\Models\Projecttahapan;
 use App\Models\logaktivitas;
 use App\Models\tahapanconstrain;
+use App\Models\Rapat;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -136,25 +137,25 @@ class PermintaanController extends Controller
 
     public function show(Permintaan $permintaan)
     {
-        // Ambil data permintaan beserta relasinya
         $permintaan->load([
             'projects' => function ($query) {
                 $query->with([
                     'progress' => function ($query) {
                         $query->with(['tahapan', 'tahapanconstrains']);
                     },
-                    'dikelola' // Pengelola proyek (user)
+                    'dikelola'
                 ]);
             },
-            'users' // Pengaju permintaan
+            'users'
         ]);
 
-        // Ambil log aktivitas terkait semua projectprogress
-        $logAktivitas = Logaktivitas::whereIn('projectprogress_id',
-            $permintaan->projects->progress->pluck('id')
-        )->with('users')->orderBy('created_at', 'desc')->get();
+        // dd($permintaan->projects->progress);
 
-        // Ambil hak akses pengguna saat ini dari tabel permissions
+        $logAktivitas = Logaktivitas::whereIn('projectprogress_id', $permintaan->projects->progress->pluck('id'))
+            ->with('users')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         $userPermissions = Auth::user()->role->permissions->pluck('projecttahapan_id')->toArray();
 
         return Inertia::render('Permintaan/show', [
@@ -171,28 +172,19 @@ class PermintaanController extends Controller
      */
     public function confirmStep(Request $request, Permintaan $permintaan)
     {
-        $request->validate([
-            'projectprogressId' => 'required|exists:projectprogresses,id',
-        ]);
-
+        $request->validate(['projectprogressId' => 'required|exists:projectprogresses,id']);
         $projectprogress = Projectprogress::findOrFail($request->projectprogressId);
 
-        // Cek apakah pengguna memiliki izin untuk tahapan ini berdasarkan permissions
         $userPermissions = Auth::user()->role->permissions->pluck('projecttahapan_id')->toArray();
         if (!in_array($projectprogress->projecttahapan_id, $userPermissions)) {
             return response()->json(['message' => 'Anda tidak memiliki izin untuk mengonfirmasi tahapan ini.'], 403);
         }
 
-        // Cek apakah semua constrain telah dipenuhi
-        $constrains = $projectprogress->tahapanconstrains;
-        if ($constrains->where('status', 'pending')->count() > 0) {
-            return response()->json(['message' => 'Semua constrain harus dipenuhi sebelum mengonfirmasi tahapan.'], 400);
+        if ($projectprogress->tahapanconstrains->where('status', '!=', 'confirmed')->count() > 0) {
+            return response()->json(['message' => 'Semua constrain harus dikonfirmasi sebelum mengonfirmasi tahapan.'], 400);
         }
 
-        // Update status projectprogress menjadi 'completed'
         $projectprogress->update(['status' => 'completed']);
-
-        // Lanjutkan ke tahapan berikutnya (set status 'current')
         $nextProgress = Projectprogress::where('project_id', $projectprogress->project_id)
             ->where('id', '>', $projectprogress->id)
             ->orderBy('id')
@@ -202,7 +194,6 @@ class PermintaanController extends Controller
             $nextProgress->update(['status' => 'current']);
         }
 
-        // Catat log aktivitas
         Logaktivitas::create([
             'projectprogress_id' => $projectprogress->id,
             'user_id' => Auth::id(),
@@ -210,38 +201,81 @@ class PermintaanController extends Controller
             'description' => 'Tahapan ' . $projectprogress->projectTahapan->name . ' telah dikonfirmasi.',
         ]);
 
-        return response()->json(['message' => 'Tahapan berhasil dikonfirmasi dan dilanjutkan ke tahapan berikutnya.']);
+        return response()->json(['message' => 'Tahapan berhasil dikonfirmasi.']);
     }
 
     public function editConstrain(Request $request, Permintaan $permintaan, $constrainId)
     {
-        $request->validate([
-            'constrain_type' => 'required|string',
-            'status' => 'required|in:pending,fulfilled',
-        ]);
+        $constrain = TahapanConstrain::findOrFail($constrainId);
 
-        $constrain = Tahapanconstrain::findOrFail($constrainId);
-
-        // Cek apakah pengguna memiliki izin untuk tahapan ini berdasarkan permissions
         $userPermissions = Auth::user()->role->permissions->pluck('projecttahapan_id')->toArray();
         if (!in_array($constrain->projecttahapan_id, $userPermissions)) {
             return response()->json(['message' => 'Anda tidak memiliki izin untuk mengedit constrain ini.'], 403);
         }
 
-        // Update constrain
-        $constrain->update([
-            'constrain_type' => $request->constrain_type,
-            'status' => $request->status,
+        if ($constrain->status === 'confirmed') {
+            return response()->json(['message' => 'Constrain sudah dikonfirmasi dan tidak dapat diedit.'], 400);
+        }
+
+        $request->validate([
+            'constrain_type' => 'required|in:schedule,upload_file,text',
+            'status' => 'required|in:pending,fulfilled',
+            'value' => 'nullable|string',
+            'file' => 'nullable|file|max:2048|mimes:pdf,doc,docx',
         ]);
 
-        // Catat log aktivitas
+        $data = [
+            'constrain_type' => $request->constrain_type,
+            'status' => $request->status,
+        ];
+
+        if ($request->constrain_type === 'schedule' && $request->value) {
+            $data['value'] = $request->value;
+            Rapat::updateOrCreate(
+                ['project_id' => $permintaan->projects->id],
+                ['jadwalrapat' => $request->value]
+            );
+        } elseif ($request->constrain_type === 'upload_file' && $request->hasFile('file')) {
+            $filePath = $request->file('file')->store('constrains', 'public');
+            $data['file_path'] = $filePath;
+        } elseif ($request->constrain_type === 'text' && $request->value) {
+            $data['value'] = $request->value;
+        }
+
+        $constrain->update($data);
+
         Logaktivitas::create([
             'projectprogress_id' => $constrain->projectprogress->id,
             'user_id' => Auth::id(),
             'action' => 'edit constrain',
-            'description' => 'Constrain ' . $constrain->constrain_type . ' pada tahapan ' . $constrain->projectTahapan->name . ' telah diedit.',
+            'description' => 'Constrain ' . $constrain->name . ' pada tahapan ' . $constrain->projectTahapan->name . ' telah diedit.',
         ]);
 
         return response()->json(['message' => 'Constrain berhasil diedit.']);
+    }
+
+    public function confirmConstrain(Request $request, Permintaan $permintaan, $constrainId)
+    {
+        $constrain = TahapanConstrain::findOrFail($constrainId);
+
+        $userPermissions = Auth::user()->role->permissions->pluck('projecttahapan_id')->toArray();
+        if (!in_array($constrain->projecttahapan_id, $userPermissions)) {
+            return response()->json(['message' => 'Anda tidak memiliki izin untuk mengonfirmasi constrain ini.'], 403);
+        }
+
+        if ($constrain->status !== 'fulfilled') {
+            return response()->json(['message' => 'Constrain harus terpenuhi sebelum dikonfirmasi.'], 400);
+        }
+
+        $constrain->update(['status' => 'confirmed']);
+
+        Logaktivitas::create([
+            'projectprogress_id' => $constrain->projectprogress->id,
+            'user_id' => Auth::id(),
+            'action' => 'konfirmasi constrain',
+            'description' => 'Constrain ' . $constrain->name . ' pada tahapan ' . $constrain->projectTahapan->name . ' telah dikonfirmasi.',
+        ]);
+
+        return response()->json(['message' => 'Constrain berhasil dikonfirmasi.']);
     }
 }

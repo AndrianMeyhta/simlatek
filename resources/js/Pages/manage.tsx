@@ -1,35 +1,90 @@
-import React, { useState } from "react";
+import React, { useState, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import EntitySelector from "../Components/entitySelector";
 import GenericTable from "../Components/genericTable";
 import CrudModal from "../Components/crudModal";
 import Layout from "../Layouts/layout";
-import { Helmet } from "react-helmet";
 import { confirmAlert } from "../Components/sweetAlert";
 import PermissionManager from "../Components/permissionManager";
+import { Head } from "@inertiajs/react";
 
-const fetchEntities = async (entity) => {
+// Define types for the entities and data structures
+interface Entity {
+    value: string;
+    label: string;
+}
+
+interface Column {
+    key: string;
+    label: string;
+}
+
+interface Field {
+    key: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    options?: { value: string | number; label: string }[];
+}
+
+interface Role {
+    id: string | number;
+    name: string;
+}
+
+interface User {
+    id: string | number;
+    name: string;
+    email: string;
+    role?: Role;
+    role_id?: string | number;
+}
+
+interface Tahapan {
+    id: string | number;
+    name: string;
+    description: string;
+}
+
+interface Kategori {
+    id: string | number;
+    name: string;
+}
+
+interface InitialData {
+    roles?: Role[];
+}
+
+type EntityData = Role[] | User[] | Tahapan[] | Kategori[];
+
+// Fetch function with typed return
+const fetchEntities = async (entity: string): Promise<EntityData> => {
     const response = await axios.get(`/manage/${entity}`);
     return response.data?.data || [];
 };
 
-const Manage = ({ initialData }) => {
-    const [currentEntity, setCurrentEntity] = useState("roles");
-    const [showModal, setShowModal] = useState(false);
-    const [modalMode, setModalMode] = useState("add");
-    const [formData, setFormData] = useState({});
-    const [editingId, setEditingId] = useState(null);
+// Props type for the Manage component
+interface ManageProps {
+    initialData?: InitialData;
+}
+
+const Manage: React.FC<ManageProps> = ({ initialData }) => {
+    const [currentEntity, setCurrentEntity] = useState<string>("roles");
+    const [showModal, setShowModal] = useState<boolean>(false);
+    const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+    const [formData, setFormData] = useState<Record<string, any>>({});
+    const [editingId, setEditingId] = useState<string | number | null>(null);
 
     const queryClient = useQueryClient();
 
-    const { data, isLoading } = useQuery({
+    const { data, isLoading } = useQuery<EntityData>({
         queryKey: ["entities", currentEntity],
         queryFn: () => fetchEntities(currentEntity),
         staleTime: 1000 * 60 * 5,
     });
 
-    const entities = [
+    const entities: Entity[] = [
         { value: "roles", label: "Roles" },
         { value: "users", label: "Users" },
         { value: "tahapans", label: "Project Tahapan" },
@@ -37,7 +92,7 @@ const Manage = ({ initialData }) => {
         { value: "kategoris", label: "Dokumen Kategori" },
     ];
 
-    const columns = {
+    const columns: Record<string, Column[]> = {
         roles: [{ key: "name", label: "Name" }],
         users: [
             { key: "name", label: "Name" },
@@ -51,12 +106,17 @@ const Manage = ({ initialData }) => {
         kategoris: [{ key: "name", label: "Name" }],
     };
 
-    const fields = {
+    const fields: Record<string, Field[]> = {
         roles: [{ key: "name", label: "Name", type: "text" }],
         users: [
             { key: "name", label: "Name", type: "text" },
             { key: "email", label: "Email", type: "email" },
-            { key: "password", label: "Password", type: "password", required: false },
+            {
+                key: "password",
+                label: "Password",
+                type: "password",
+                required: false,
+            },
             {
                 key: "role_id",
                 label: "Role",
@@ -75,21 +135,34 @@ const Manage = ({ initialData }) => {
     };
 
     const mutation = useMutation({
-        mutationFn: ({ method, url, payload }) => axios({ method, url, data: payload }),
+        mutationFn: ({
+            method,
+            url,
+            payload,
+        }: {
+            method: string;
+            url: string;
+            payload: any;
+        }) => axios({ method, url, data: payload }),
         onSuccess: () => {
-            queryClient.invalidateQueries(["entities", currentEntity]);
+            queryClient.invalidateQueries({
+                queryKey: ["entities", currentEntity],
+            });
             closeModal();
         },
     });
 
     const deleteMutation = useMutation({
-        mutationFn: (id) => axios.delete(`/manage/${currentEntity}/${id}`),
+        mutationFn: (id: string | number) =>
+            axios.delete(`/manage/${currentEntity}/${id}`),
         onSuccess: () => {
-            queryClient.invalidateQueries(["entities", currentEntity]);
+            queryClient.invalidateQueries({
+                queryKey: ["entities", currentEntity],
+            });
         },
     });
 
-    const openModal = (mode, item = null) => {
+    const openModal = (mode: "add" | "edit", item: any = null) => {
         setModalMode(mode);
         setShowModal(true);
         if (mode === "add") {
@@ -113,22 +186,28 @@ const Manage = ({ initialData }) => {
         setEditingId(null);
     };
 
-    const handleFormChange = (key, value) => {
+    const handleFormChange = (key: string, value: any) => {
         setFormData({ ...formData, [key]: value });
     };
 
-    const submitForm = async (e) => {
+    const submitForm = async (e: FormEvent) => {
         e.preventDefault();
         const method = modalMode === "add" ? "post" : "put";
-        const url = modalMode === "add" ? `/manage/${currentEntity}` : `/manage/${currentEntity}/${editingId}`;
+        const url =
+            modalMode === "add"
+                ? `/manage/${currentEntity}`
+                : `/manage/${currentEntity}/${editingId}`;
         mutation.mutate({ method, url, payload: formData });
     };
 
-    const deleteRecord = (id) => {
+    const deleteRecord = (id: string | number) => {
         confirmAlert(
             "Konfirmasi Hapus",
             "Apakah anda yakin ingin menghapus data ini?",
-            () => deleteMutation.mutateAsync(id),
+            async () => {
+                await deleteMutation.mutateAsync(id);
+                return true;
+            },
             "Ya",
             "Batal",
             "Data berhasil dihapus!",
@@ -138,9 +217,7 @@ const Manage = ({ initialData }) => {
 
     return (
         <>
-            <Helmet>
-                <title>Simlatek - Manage Dashboard</title>
-            </Helmet>
+            <Head title="Simlatek - Manage" />
             <Layout currentActive="database">
                 <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
                     <div className="max-w-7xl mx-auto">
@@ -159,28 +236,27 @@ const Manage = ({ initialData }) => {
                                     entities={entities}
                                     currentEntity={currentEntity}
                                     onChange={setCurrentEntity}
-                                    className="w-full sm:w-64 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400"
+                                    className="w-full sm:w-64 rounded-lg h-7 pl-4 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400"
                                 />
-                                {currentEntity !== "permissions" && (
-                                    <button
-                                        onClick={() => openModal("add")}
-                                        className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 dark:bg-cyan-500 dark:hover:bg-cyan-600 transition-colors duration-200 flex items-center gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 dark:focus:ring-offset-gray-800"
+                                <button
+                                    onClick={() => openModal("add")}
+                                    className={`px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 dark:bg-cyan-500 dark:hover:bg-cyan-600 transition-colors duration-200 flex items-center gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 dark:focus:ring-offset-gray-800
+      ${currentEntity === "permissions" ? "invisible" : ""}`}
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
                                     >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            className="h-5 w-5"
-                                            viewBox="0 0 20 20"
-                                            fill="currentColor"
-                                        >
-                                            <path
-                                                fillRule="evenodd"
-                                                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                                                clipRule="evenodd"
-                                            />
-                                        </svg>
-                                        Tambah Baru
-                                    </button>
-                                )}
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                    Tambah Baru
+                                </button>
                             </div>
 
                             {isLoading ? (
@@ -196,8 +272,10 @@ const Manage = ({ initialData }) => {
                                 <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                                     <GenericTable
                                         columns={columns[currentEntity]}
-                                        data={data}
-                                        onEdit={(item) => openModal("edit", item)}
+                                        data={data || []}
+                                        onEdit={(item) =>
+                                            openModal("edit", item)
+                                        }
                                         onDelete={deleteRecord}
                                     />
                                 </div>
@@ -207,8 +285,11 @@ const Manage = ({ initialData }) => {
                         <CrudModal
                             show={showModal}
                             onClose={closeModal}
-                            title={`${modalMode === "add" ? "Tambah" : "Edit"} ${
-                                entities.find((e) => e.value === currentEntity)?.label
+                            title={`${
+                                modalMode === "add" ? "Tambah" : "Edit"
+                            } ${
+                                entities.find((e) => e.value === currentEntity)
+                                    ?.label
                             }`}
                             formData={formData}
                             onChange={handleFormChange}

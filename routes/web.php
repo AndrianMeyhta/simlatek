@@ -11,6 +11,7 @@ use App\Http\Controllers\tahapanController;
 use App\Http\Controllers\permissionController;
 use App\Http\Controllers\KategoriController;
 use App\Http\Controllers\PermintaanController;
+use App\Http\Controllers\ConstrainController;
 use App\Models\Role;
 use App\Models\projecttahapan;
 
@@ -25,12 +26,20 @@ Route::controller(AuthController::class)->group(function () {
 Route::middleware(['auth', UserSessionMiddleware::class])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('/permintaan/create', [PermintaanController::class, 'create']);
-    Route::post('/permintaan', [PermintaanController::class, 'store']);
-    Route::get('/permintaan', [PermintaanController::class, 'index'])->name('permintaan.index');
-    Route::get('/permintaan/{permintaan}', [PermintaanController::class, 'show'])->name('permintaan.show');
-    Route::post('/permintaan/{permintaan}/confirm-step', [PermintaanController::class, 'confirmStep'])->name('permintaan.confirmStep');
-    Route::post('/permintaan/{permintaan}/edit-constrain/{constrainId}', [PermintaanController::class, 'editConstrain'])->name('permintaan.editConstrain');
+    Route::prefix('permintaan')->controller(PermintaanController::class)->group(function () {
+        Route::get('/create', 'create');
+        Route::post('/', 'store');
+        Route::get('/', 'index')->name('permintaan.index');
+        Route::get('/{permintaan}', 'show')->name('permintaan.show');
+        Route::post('/{permintaan}/confirm-step', 'confirmStep')->name('permintaan.confirm-step');
+        Route::post('/{permintaan}/constrain/{constrain}', 'editConstrain')->name('permintaan.edit-constrain');
+        Route::post('/{permintaan}/constrain/{constrain}/confirm', 'confirmConstrain')->name('permintaan.confirm-constrain');
+    });
+
+    Route::get('/constrain', [ConstrainController::class, 'index'])->name('constrain.index');
+    Route::post('/constrain', [ConstrainController::class, 'store'])->name('constrain.store');
+    Route::put('/constrain/{constraint}', [ConstrainController::class, 'update'])->name('constrain.update');
+    Route::delete('/constrain/{constraint}', [ConstrainController::class, 'destroy'])->name('constrain.destroy');
 
     Route::prefix('manage')->group(function () {
         Route::get('/', function () {

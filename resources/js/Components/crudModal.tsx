@@ -1,8 +1,27 @@
-// resources/js/Components/CrudModal.jsx
+// resources/js/Components/CrudModal.tsx
 import React from "react";
-import { successAlert,warningAlert } from "./sweetAlert";
+import { successAlert, warningAlert } from "./sweetAlert";
 
-const CrudModal = ({
+// Define interfaces for props and field structure
+interface Field {
+    key: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    options?: { value: string | number; label: string }[];
+}
+
+interface CrudModalProps {
+    show: boolean;
+    onClose: () => void;
+    title: string;
+    formData: Record<string, any>;
+    onChange: (key: string, value: any) => void;
+    onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+    fields: Field[];
+}
+
+const CrudModal: React.FC<CrudModalProps> = ({
     show,
     onClose,
     title,
@@ -15,28 +34,32 @@ const CrudModal = ({
 
     console.log("CrudModal - formData:", formData);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        // Cek apakah ada field select dengan nilai kosong
+        // Check if any select field has an empty value
         const hasEmptySelect = fields.some((field) => {
-            if (field.type === "select" && (!formData[field.key] || formData[field.key] === "")) {
+            if (
+                field.type === "select" &&
+                (!formData[field.key] || formData[field.key] === "")
+            ) {
                 return true;
             }
             return false;
         });
 
         if (hasEmptySelect) {
-            const selectFieldLabel = fields.find(f => f.type === "select")?.label || "option";
+            const selectFieldLabel =
+                fields.find((f) => f.type === "select")?.label || "option";
             warningAlert(
-                null, // Gunakan default title ("WARNING" atau "Peringatan")
+                'Warning', // Use default title ("WARNING" or "Peringatan")
                 `Please select a valid ${selectFieldLabel} before saving.`
             );
             return;
         }
-        successAlert("Succes","Data berhasil disimpan");
+        successAlert("Success", "Data berhasil disimpan");
 
-        onSubmit(e); // Lanjutkan submit jika valid
+        onSubmit(e); // Proceed with submit if valid
     };
 
     return (
@@ -54,14 +77,21 @@ const CrudModal = ({
                             {field.type === "select" ? (
                                 <select
                                     value={formData[field.key] || ""}
-                                    onChange={(e) => {
-                                        console.log(`Changing ${field.key} to:`, e.target.value);
+                                    onChange={(
+                                        e: React.ChangeEvent<HTMLSelectElement>
+                                    ) => {
+                                        console.log(
+                                            `Changing ${field.key} to:`,
+                                            e.target.value
+                                        );
                                         onChange(field.key, e.target.value);
                                     }}
                                     className="w-full p-2 border rounded-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
-                                    <option value="">Select {field.label}</option>
-                                    {field.options.map((option) => (
+                                    <option value="">
+                                        Select {field.label}
+                                    </option>
+                                    {field.options?.map((option) => (
                                         <option
                                             key={option.value}
                                             value={option.value}
@@ -74,8 +104,13 @@ const CrudModal = ({
                                 <input
                                     type={field.type}
                                     value={formData[field.key] || ""}
-                                    onChange={(e) => {
-                                        console.log(`Changing ${field.key} to:`, e.target.value);
+                                    onChange={(
+                                        e: React.ChangeEvent<HTMLInputElement>
+                                    ) => {
+                                        console.log(
+                                            `Changing ${field.key} to:`,
+                                            e.target.value
+                                        );
                                         onChange(field.key, e.target.value);
                                     }}
                                     className="w-full p-2 border rounded-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"

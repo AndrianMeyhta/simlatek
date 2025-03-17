@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tahapanconstrains', function (Blueprint $table) {
+        Schema::create('constraindatas', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('projecttahapan_id')->constrained('projecttahapans')->onDelete('cascade');
-            $table->string('name');
-            $table->string('type');
-            $table->json('detail');
+            $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->foreignId('tahapanconstrain_id')->constrained()->onDelete('cascade');
+            $table->enum('status', ['pending', 'fulfilled'])->default('pending');
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tahapanconstrains');
+        Schema::dropIfExists('constraindatas');
     }
 };

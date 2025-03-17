@@ -1,14 +1,26 @@
 import React from "react";
 import { Link } from "@inertiajs/react";
-import { Helmet } from "react-helmet";
 import Layout from "../../Layouts/layout";
+import { Head } from "@inertiajs/react";
 
-const PermintaanIndex = ({ permintaans }) => {
+// Definisikan interface untuk struktur data permintaan
+interface Permintaan {
+    id: number;
+    nomertiket: string;
+    title: string;
+    status: string;
+    progress: number;
+}
+
+// Definisikan tipe untuk props komponen
+interface PermintaanIndexProps {
+    permintaans: Permintaan[];
+}
+
+const PermintaanIndex: React.FC<PermintaanIndexProps> = ({ permintaans }) => {
     return (
         <>
-            <Helmet>
-                <title>Simlatek - Permintaan</title>
-            </Helmet>
+            <Head title="Simlatek - Permohonan" />
             <Layout currentActive="permohonan_daftar">
                 <div className="container mx-auto p-6">
                     <h1 className="text-3xl font-bold mb-6 text-gray-800">
@@ -39,7 +51,7 @@ const PermintaanIndex = ({ permintaans }) => {
                                 {permintaans.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan="5"
+                                            colSpan={5}
                                             className="px-6 py-4 text-center text-gray-500"
                                         >
                                             Tidak ada permintaan yang tersedia.

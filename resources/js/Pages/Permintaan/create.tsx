@@ -1,15 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, DragEvent } from "react";
 import axios from "axios";
-import { Helmet } from "react-helmet";
+import { Head } from "@inertiajs/react";
 import Layout from "../../Layouts/layout";
 import { usePage } from "@inertiajs/react";
 import { Upload } from "lucide-react";
 
-const CreatePermintaan = () => {
-    const { props } = usePage();
-    const nomertiket = props.nomertiket || "";
+// Define the shape of the form data
+interface FormData {
+    title: string;
+    description: string;
+    anggaran: string;
+    files: {
+        suratPermohonan: File | null;
+        dataUsulan: File | null;
+        petaPerencanaan: File | null;
+    };
+}
 
-    const [formData, setFormData] = useState({
+// Define the shape of props from usePage
+interface PageProps {
+    nomertiket?: string; // Made optional to match your original logic
+}
+
+const CreatePermintaan = () => {
+    const { props } = usePage<{ props: PageProps }>();
+    const nomertiket = (props.nomertiket as string | undefined) ?? "";
+
+    const [formData, setFormData] = useState<FormData>({
         title: "",
         description: "",
         anggaran: "",
@@ -19,45 +36,59 @@ const CreatePermintaan = () => {
             petaPerencanaan: null,
         },
     });
-    const [dragOver, setDragOver] = useState({});
+    const [dragOver, setDragOver] = useState<Record<string, boolean>>({});
 
-    const handleInputChange = (e) => {
+    const handleInputChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleFileChange = (category, file) => {
+    const handleFileChange = (
+        category: keyof FormData["files"],
+        file: File | null
+    ) => {
         setFormData((prev) => ({
             ...prev,
             files: { ...prev.files, [category]: file },
         }));
     };
 
-    const handleDrop = (e, category) => {
+    const handleDrop = (
+        e: DragEvent<HTMLDivElement>,
+        category: keyof FormData["files"]
+    ) => {
         e.preventDefault();
         setDragOver((prev) => ({ ...prev, [category]: false }));
         const file = e.dataTransfer.files[0];
         handleFileChange(category, file);
     };
 
-    const handleDragOver = (e, category) => {
+    const handleDragOver = (
+        e: DragEvent<HTMLDivElement>,
+        category: keyof FormData["files"]
+    ) => {
         e.preventDefault();
         setDragOver((prev) => ({ ...prev, [category]: true }));
     };
 
-    const handleDragLeave = (e, category) => {
+    const handleDragLeave = (
+        e: DragEvent<HTMLDivElement>,
+        category: keyof FormData["files"]
+    ) => {
         setDragOver((prev) => ({ ...prev, [category]: false }));
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const data = new FormData();
         data.append("title", formData.title);
         data.append("description", formData.description);
         data.append("anggaran", formData.anggaran);
-        data.append("suratPermohonan", formData.files.suratPermohonan);
-        data.append("dataUsulan", formData.files.dataUsulan);
-        data.append("petaPerencanaan", formData.files.petaPerencanaan);
+        data.append("suratPermohonan", formData.files.suratPermohonan as File);
+        data.append("dataUsulan", formData.files.dataUsulan as File);
+        data.append("petaPerencanaan", formData.files.petaPerencanaan as File);
 
         try {
             await axios.post("/permintaan", data);
@@ -66,7 +97,11 @@ const CreatePermintaan = () => {
                 title: "",
                 description: "",
                 anggaran: "",
-                files: { suratPermohonan: null, dataUsulan: null, petaPerencanaan: null },
+                files: {
+                    suratPermohonan: null,
+                    dataUsulan: null,
+                    petaPerencanaan: null,
+                },
             });
         } catch (error) {
             console.error(error);
@@ -76,9 +111,7 @@ const CreatePermintaan = () => {
 
     return (
         <>
-            <Helmet>
-                <title>Simlatek - Buat Permohonan</title>
-            </Helmet>
+            <Head title="Simlatek - Pengajuan" />
             <Layout currentActive="permohonan_pengajuan">
                 <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
                     <div className="max-w-4xl mx-auto">
@@ -87,7 +120,8 @@ const CreatePermintaan = () => {
                                 Buat Permohonan Baru
                             </h1>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Lengkapi formulir di bawah untuk mengajukan permohonan
+                                Lengkapi formulir di bawah untuk mengajukan
+                                permohonan
                             </p>
                         </header>
 
@@ -130,7 +164,7 @@ const CreatePermintaan = () => {
                                         name="description"
                                         value={formData.description}
                                         onChange={handleInputChange}
-                                        rows="4"
+                                        rows={4}
                                         className="mt-1 w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 dark:focus:ring-cyan-400 dark:focus:border-cyan-400 transition-colors resize-y"
                                     />
                                 </div>
@@ -156,9 +190,18 @@ const CreatePermintaan = () => {
                                         Upload Dokumen Persyaratan
                                     </h3>
                                     {[
-                                        { key: "suratPermohonan", label: "Surat Permohonan" },
-                                        { key: "dataUsulan", label: "Data Usulan" },
-                                        { key: "petaPerencanaan", label: "Peta Perencanaan SPBE" },
+                                        {
+                                            key: "suratPermohonan",
+                                            label: "Surat Permohonan",
+                                        },
+                                        {
+                                            key: "dataUsulan",
+                                            label: "Data Usulan",
+                                        },
+                                        {
+                                            key: "petaPerencanaan",
+                                            label: "Peta Perencanaan SPBE",
+                                        },
                                     ].map((doc) => (
                                         <div
                                             key={doc.key}
@@ -167,13 +210,34 @@ const CreatePermintaan = () => {
                                                     ? "border-cyan-500 bg-cyan-50/50 dark:border-cyan-400 dark:bg-cyan-900/20"
                                                     : "border-dashed border-gray-300 dark:border-gray-600"
                                             } transition-all duration-200`}
-                                            onDrop={(e) => handleDrop(e, doc.key)}
-                                            onDragOver={(e) => handleDragOver(e, doc.key)}
-                                            onDragLeave={(e) => handleDragLeave(e, doc.key)}
+                                            onDrop={(e) =>
+                                                handleDrop(
+                                                    e,
+                                                    doc.key as keyof FormData["files"]
+                                                )
+                                            }
+                                            onDragOver={(e) =>
+                                                handleDragOver(
+                                                    e,
+                                                    doc.key as keyof FormData["files"]
+                                                )
+                                            }
+                                            onDragLeave={(e) =>
+                                                handleDragLeave(
+                                                    e,
+                                                    doc.key as keyof FormData["files"]
+                                                )
+                                            }
                                         >
                                             <input
                                                 type="file"
-                                                onChange={(e) => handleFileChange(doc.key, e.target.files[0])}
+                                                onChange={(e) =>
+                                                    handleFileChange(
+                                                        doc.key as keyof FormData["files"],
+                                                        e.target.files?.[0] ||
+                                                            null
+                                                    )
+                                                }
                                                 className="hidden"
                                                 id={doc.key}
                                             />
@@ -188,13 +252,20 @@ const CreatePermintaan = () => {
                                                             {doc.label}
                                                         </p>
                                                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                            {formData.files[doc.key]
-                                                                ? formData.files[doc.key].name
+                                                            {formData.files[
+                                                                doc.key as keyof FormData["files"]
+                                                            ]
+                                                                ? formData
+                                                                      .files[
+                                                                      doc.key as keyof FormData["files"]
+                                                                  ]?.name
                                                                 : "Drag & drop atau klik untuk upload"}
                                                         </p>
                                                     </div>
                                                 </div>
-                                                {formData.files[doc.key] && (
+                                                {formData.files[
+                                                    doc.key as keyof FormData["files"]
+                                                ] && (
                                                     <span className="text-xs text-cyan-600 dark:text-cyan-400">
                                                         Uploaded
                                                     </span>

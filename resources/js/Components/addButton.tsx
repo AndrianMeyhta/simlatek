@@ -1,8 +1,13 @@
-// AddButton.jsx
+// AddButton.tsx
 import React from "react";
 import { PlusIcon } from "lucide-react";
 
-const AddButton = ({ onClick }) => {
+// Define the props interface
+interface AddButtonProps {
+    onClick: () => void;
+}
+
+const AddButton: React.FC<AddButtonProps> = ({ onClick }) => {
     return (
         <button
             onClick={onClick}

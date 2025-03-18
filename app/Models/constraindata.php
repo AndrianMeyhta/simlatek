@@ -11,11 +11,7 @@ class constraindata extends Model
 
     protected $table = 'constraindatas';
 
-    protected $fillable = [
-        'project_id',
-        'tahapanconstrain_id',
-        'status',
-    ];
+    protected $fillable = ['project_id', 'tahapanconstrain_id', 'status'];
 
     protected $casts = [
         'status' => 'string',

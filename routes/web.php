@@ -32,7 +32,7 @@ Route::middleware(['auth', UserSessionMiddleware::class])->group(function () {
         Route::get('/', 'index')->name('permintaan.index');
         Route::get('/{permintaan}', 'show')->name('permintaan.show');
         Route::post('/{permintaan}/confirm-step', 'confirmStep')->name('permintaan.confirm-step');
-        Route::post('/{permintaan}/constrain/{constrain}', 'editConstrain')->name('permintaan.edit-constrain');
+        Route::post('/{permintaanId}/constrain/{constrainId}', 'updateConstrain')->name('permintaan.edit-constrain');
         Route::post('/{permintaan}/constrain/{constrain}/confirm', 'confirmConstrain')->name('permintaan.confirm-constrain');
     });
 

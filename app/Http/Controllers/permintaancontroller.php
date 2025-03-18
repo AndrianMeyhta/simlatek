@@ -12,9 +12,11 @@ use App\Models\Projecttahapan;
 use App\Models\logaktivitas;
 use App\Models\tahapanconstrain;
 use App\Models\Rapat;
+use App\Models\Constraindata;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class PermintaanController extends Controller
 {
@@ -135,6 +137,95 @@ class PermintaanController extends Controller
         return response()->json(['message' => 'Permintaan berhasil dibuat'], 201);
     }
 
+    public function updateConstrain(Request $request, $permintaanId, $constrainId)
+    {
+        try {
+            $constrain = TahapanConstrain::findOrFail($constrainId);
+            $progress = ProjectProgress::where('project_id', $request->project_id)
+                ->where('projecttahapan_id', $constrain->projecttahapan_id)
+                ->firstOrFail();
+
+            $constraindata = Constraindata::firstOrCreate(
+                [
+                    'project_id' => $progress->project_id,
+                    'tahapanconstrain_id' => $constrain->id,
+                ],
+                ['status' => 'pending']
+            );
+
+            $detail = $constrain->detail;
+            if (empty($detail) || !isset($detail['target_table']) || !isset($detail['target_column'])) {
+                return response()->json(['message' => 'Detail constrain tidak lengkap atau tidak valid'], 422);
+            }
+
+            if ($request->constrain_type === 'upload_file' && $request->hasFile('file')) {
+                $file = $request->file('file');
+                if ($file->getSize() > 10 * 1024 * 1024) {
+                    return response()->json(['message' => 'File terlalu besar, maksimum 10MB'], 422);
+                }
+                $path = $file->store('public/constraints');
+
+                // Simpan ke tabel dokumens
+                $dokumenData = [
+                    'filename' => $file->getClientOriginalName(),
+                    'filepath' => $path,
+                    'dokumenkategori_id' => $detail['dokumenkategori_id'] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+                $dokumenId = DB::table('dokumens')->insertGetId($dokumenData);
+
+                // Simpan relasi ke dokumenrelasis
+                $relasiData = [
+                    'dokumen_id' => $dokumenId,
+                    'relasi_type' => 'App\Models\ProjectProgress', // Namespace model ProjectProgress
+                    'relasi_id' => $progress->id, // ID dari ProjectProgress
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+                DB::table('dokumenrelasis')->insert($relasiData);
+
+                $constraindata->update(['status' => 'fulfilled']);
+            } elseif ($request->constrain_type === 'schedule' || $request->constrain_type === 'text') {
+                $value = $request->input('value');
+                if (!$value) {
+                    return response()->json(['message' => 'Value tidak boleh kosong'], 422);
+                }
+                $constraindata->update(['status' => 'fulfilled']);
+
+                $data = [
+                    $detail['target_column'] => $value,
+                    'project_id' => $progress->project_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+                if ($detail['target_table'] === 'dokumens') {
+                    $data['filename'] = 'text_input_' . now()->timestamp;
+                    $data['dokumenkategori_id'] = $detail['dokumenkategori_id'] ?? null;
+                    $dokumenId = DB::table('dokumens')->insertGetId($data);
+
+                    // Simpan relasi ke dokumenrelasis untuk text (jika diperlukan)
+                    $relasiData = [
+                        'dokumen_id' => $dokumenId,
+                        'relasi_type' => 'App\Models\ProjectProgress',
+                        'relasi_id' => $progress->id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                    DB::table('dokumenrelasis')->insert($relasiData);
+                } else {
+                    DB::table($detail['target_table'])->insert($data);
+                }
+            } else {
+                return response()->json(['message' => 'Tipe constrain tidak valid'], 422);
+            }
+
+            return response()->json(['message' => 'Constrain updated']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function show(Permintaan $permintaan)
     {
         $permintaan->load([
@@ -143,13 +234,36 @@ class PermintaanController extends Controller
                     'progress' => function ($query) {
                         $query->with(['tahapan' => function ($query) {
                             $query->withDefault(['name' => 'Tahapan Tidak Diketahui']);
-                        }, 'tahapanconstrains']);
+                        }, 'tahapanconstrains.constraindata']);
                     },
                     'dikelola'
                 ]);
             },
             'users'
         ]);
+
+        // Ambil data dari target_table untuk setiap constrain
+        foreach ($permintaan->projects->progress as $progress) {
+            foreach ($progress->tahapanconstrains as $constrain) {
+                $detail = $constrain->detail;
+                if (isset($detail['target_table']) && isset($detail['target_column'])) {
+                    if ($detail['target_table'] === 'dokumens') {
+                        $constrain->target_data = DB::table('dokumenrelasis')
+                            ->join('dokumens', 'dokumenrelasis.dokumen_id', '=', 'dokumens.id')
+                            ->where('dokumenrelasis.relasi_type', 'App\Models\ProjectProgress')
+                            ->where('dokumenrelasis.relasi_id', $progress->id)
+                            ->where('dokumens.dokumenkategori_id', $detail['dokumenkategori_id'] ?? null)
+                            ->select('dokumens.filename', 'dokumens.filepath')
+                            ->first();
+                    } elseif ($detail['target_table'] === 'rapats') {
+                        $constrain->target_data = DB::table('rapats')
+                            ->where('project_id', $progress->project_id)
+                            ->select('jadwalrapat')
+                            ->first();
+                    }
+                }
+            }
+        }
 
         $logAktivitas = Logaktivitas::whereIn('projectprogress_id', $permintaan->projects->progress->pluck('id'))
             ->with('users')
@@ -165,41 +279,6 @@ class PermintaanController extends Controller
             'logAktivitas' => $logAktivitas,
             'userPermissions' => $userPermissions,
         ]);
-    }
-
-    /**
-     * Menangani konfirmasi tahapan dan transisi ke tahapan berikutnya
-     */
-    public function updateConstrain(Request $request, $permintaanId, $constrainId)
-    {
-        $constrain = TahapanConstrain::findOrFail($constrainId);
-        $progress = ProjectProgress::where('project_id', $request->project_id)
-            ->where('projecttahapan_id', $constrain->projecttahapan_id)
-            ->firstOrFail();
-
-        $constraindata = Constraindata::firstOrCreate([
-            'project_id' => $progress->project_id,
-            'tahapanconstrain_id' => $constrain->id,
-        ]);
-
-        if ($request->constrain_type === 'upload_file' && $request->hasFile('file')) {
-            $file = $request->file('file');
-            if ($file->getSize() > 10 * 1024 * 1024) {
-                return response()->json(['message' => 'File terlalu besar'], 422);
-            }
-            $path = $file->store('public/constraints');
-            $constraindata->update([
-                'file_path' => $path,
-                'status' => $request->status,
-            ]);
-        } elseif ($request->constrain_type === 'schedule' || $request->constrain_type === 'text') {
-            $constraindata->update([
-                'value' => $request->value,
-                'status' => $request->status,
-            ]);
-        }
-
-        return response()->json(['message' => 'Constrain updated']);
     }
 
     public function confirmConstrain(Request $request, $permintaanId, $constrainId)

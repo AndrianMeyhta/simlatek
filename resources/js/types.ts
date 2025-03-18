@@ -179,22 +179,29 @@ export interface ProjectTahapan {
     name: string;
 }
 
+export interface Constraindata {
+    id: number;
+    project_id: number;
+    tahapanconstrain_id: number;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface TahapanConstrain {
     id: number;
     projecttahapan_id: number;
     name: string; // Langsung gunakan name
     type: 'schedule' | 'upload_file' | 'text'; // Ganti constrain_type menjadi type
     detail: string; // Kolom detail sebagai string (atau array jika di-cast sebagai JSON)
-    status: 'pending' | 'fulfilled' | 'confirmed';
-    value?: string | null;
-    file_path?: string | null;
+    constraindata?: Constraindata;
 }
 
 export interface ProjectProgress {
     id: number;
     project_id: number;
     projecttahapan_id: number;
-    status: 'not_started' | 'current' | 'completed';
+    status: 'upcoming' | 'current' | 'completed';
     percentage: number;
     description?: string | null;
     tahapan?: ProjectTahapan; // Tetap opsional untuk keamanan

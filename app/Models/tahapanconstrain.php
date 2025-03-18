@@ -29,14 +29,19 @@ class tahapanconstrain extends Model
         return $this->belongsTo(ProjectTahapan::class, 'projecttahapan_id');
     }
 
-    // Relasi ke Constraindata
     public function constraindata()
     {
-        return $this->hasMany(Constraindata::class, 'tahapanconstrain_id');
+        return $this->hasOne(Constraindata::class, 'tahapanconstrain_id');
     }
 
     public function projectprogress()
     {
         return $this->hasOne(Projectprogress::class, 'projecttahapan_id', 'projecttahapan_id');
+    }
+
+    // Accessor untuk parsing detail sebagai array
+    public function getDetailAttribute($value)
+    {
+        return json_decode($value, true) ?: [];
     }
 }

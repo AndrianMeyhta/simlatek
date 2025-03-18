@@ -69,53 +69,10 @@ const ShowPermintaan: React.FC<PageProps> = ({
         }
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("constrain_type", "upload_file"); // Sesuaikan dengan backend
+        formData.append("constrain_type", "upload_file");
         formData.append("status", "fulfilled");
         formData.append("project_id", project.id.toString());
         handleEditConstrain(constrainId, formData);
-    };
-
-    const confirmConstrain = async (constrainId: number) => {
-        setIsLoading((prev) => ({ ...prev, [constrainId]: true }));
-        Swal.fire({
-            title: "Konfirmasi Constrain?",
-            text: "Apakah Anda yakin data constrain sudah benar?",
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonText: "Ya, Konfirmasi!",
-            cancelButtonText: "Batal",
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                try {
-                    await axios.post(
-                        `/permintaan/${permintaan.id}/constrain/${constrainId}/confirm`,
-                        {
-                            project_id: project.id,
-                            _token: document
-                                .querySelector('meta[name="csrf-token"]')
-                                ?.getAttribute("content"),
-                        }
-                    );
-                    Swal.fire({
-                        icon: "success",
-                        title: "Berhasil!",
-                        text: "Constrain berhasil dikonfirmasi.",
-                        timer: 1500,
-                        showConfirmButton: false,
-                    }).then(() => window.location.reload());
-                } catch (error) {
-                    Swal.fire({
-                        icon: "error",
-                        title: "Oops...",
-                        text: "Terjadi kesalahan saat mengonfirmasi constrain.",
-                    });
-                } finally {
-                    setIsLoading((prev) => ({ ...prev, [constrainId]: false }));
-                }
-            } else {
-                setIsLoading((prev) => ({ ...prev, [constrainId]: false }));
-            }
-        });
     };
 
     const confirmStep = async (progressId: number) => {
@@ -191,20 +148,23 @@ const ShowPermintaan: React.FC<PageProps> = ({
                 window.location.reload();
                 toggleEditConstrain(constrainId);
             });
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Error saat mengedit constrain:", error.response?.data || error.message);
+            const errorMessage = error.response?.data?.message || error.message || "Kesalahan tidak diketahui";
             Swal.fire({
                 icon: "error",
                 title: "Oops...",
-                text: "Terjadi kesalahan saat mengedit constrain.",
+                text: "Terjadi kesalahan saat mengedit constrain: " + errorMessage,
             });
         } finally {
             setIsLoading((prev) => ({ ...prev, [constrainId]: false }));
         }
     };
 
+    // Ubah fungsi ini untuk hanya memeriksa apakah semua constrain sudah terpenuhi (fulfilled)
     const canConfirmStep = (progress: ProjectProgress) =>
         progress.status === "current" &&
-        progress.tahapanconstrains.every((c) => c.status === "confirmed");
+        progress.tahapanconstrains.every((c) => c.constraindata?.status === "fulfilled" || c.constraindata?.status === "confirmed");
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -212,11 +172,53 @@ const ShowPermintaan: React.FC<PageProps> = ({
                 return "bg-green-500";
             case "current":
                 return "bg-blue-500";
-            case "not_started":
+            case "upcoming":
                 return "bg-gray-300 dark:bg-gray-600";
             default:
                 return "bg-gray-300";
         }
+    };
+
+    // Fungsi untuk merender data constrain yang sudah diisi
+    const renderConstrainData = (constrain: any) => {
+        if (constrain.type === "upload_file" && constrain.target_data) {
+            return (
+                <div className="mt-2">
+                    <p className="text-sm font-medium">File terlampir:</p>
+                    <a
+                        href={`/storage/${constrain.target_data.filepath?.replace('public/', '')}`}
+                        className="text-blue-600 hover:underline text-sm"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        {constrain.target_data.filename || "Lihat file"}
+                    </a>
+                </div>
+            );
+        } else if (constrain.type === "schedule" && constrain.target_data) {
+            return (
+                <div className="mt-2">
+                    <p className="text-sm font-medium">Jadwal:</p>
+                    <p className="text-sm">
+                        {new Date(constrain.target_data.jadwalrapat).toLocaleString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                        })}
+                    </p>
+                </div>
+            );
+        } else if (constrain.type === "text" && constrain.target_data) {
+            return (
+                <div className="mt-2">
+                    <p className="text-sm font-medium">Teks:</p>
+                    <p className="text-sm">{constrain.target_data.text || constrain.target_data.value || constrain.target_data.filename || "Tidak tersedia"}</p>
+                </div>
+            );
+        }
+        return null;
     };
 
     return (
@@ -250,8 +252,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                     Pemohon
                                 </p>
                                 <p className="font-medium text-gray-800 dark:text-white">
-                                    {permintaan.users?.name ||
-                                        "Tidak diketahui"}
+                                    {permintaan.users?.name || "Tidak diketahui"}
                                 </p>
                             </div>
                             <div>
@@ -259,8 +260,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                     Dikelola oleh
                                 </p>
                                 <p className="font-medium text-gray-800 dark:text-white">
-                                    {project.dikelola?.name ||
-                                        "Tidak diketahui"}
+                                    {project.dikelola?.name || "Tidak diketahui"}
                                 </p>
                             </div>
                             <div className="text-right">
@@ -269,9 +269,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                 </p>
                                 <p className="font-medium text-gray-800 dark:text-white">
                                     {permintaan.created_at
-                                        ? new Date(
-                                              permintaan.created_at
-                                          ).toLocaleDateString("id-ID", {
+                                        ? new Date(permintaan.created_at).toLocaleDateString("id-ID", {
                                               day: "numeric",
                                               month: "long",
                                               year: "numeric",
@@ -311,11 +309,9 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                             <div className="flex items-center space-x-2">
                                                 <span
                                                     className={`text-sm font-medium ${
-                                                        progress.status ===
-                                                        "completed"
+                                                        progress.status === "completed"
                                                             ? "text-green-600"
-                                                            : progress.status ===
-                                                              "current"
+                                                            : progress.status === "current"
                                                             ? "text-blue-600"
                                                             : "text-gray-500"
                                                     }`}
@@ -324,20 +320,16 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                 </span>
                                                 <span
                                                     className={`px-2 py-1 text-xs rounded-full ${
-                                                        progress.status ===
-                                                        "completed"
+                                                        progress.status === "completed"
                                                             ? "bg-green-100 text-green-800"
-                                                            : progress.status ===
-                                                              "current"
+                                                            : progress.status === "current"
                                                             ? "bg-blue-100 text-blue-800"
                                                             : "bg-gray-100 text-gray-800"
                                                     }`}
                                                 >
-                                                    {progress.status ===
-                                                    "completed"
+                                                    {progress.status === "completed"
                                                         ? "Selesai"
-                                                        : progress.status ===
-                                                          "current"
+                                                        : progress.status === "current"
                                                         ? "Berjalan"
                                                         : "Belum Dimulai"}
                                                 </span>
@@ -348,33 +340,28 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                 className={`h-2.5 rounded-full ${getStatusColor(
                                                     progress.status
                                                 )}`}
-                                                style={{
-                                                    width: `${progress.percentage}%`,
-                                                }}
+                                                style={{ width: `${progress.percentage}%` }}
                                             ></div>
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                            {progress.description ||
-                                                "Tidak ada deskripsi"}
+                                            {progress.description || "Tidak ada deskripsi"}
                                         </p>
 
                                         {/* Daftar Constrain */}
-                                        {progress.tahapanconstrains?.length >
-                                        0 ? (
+                                        {progress.tahapanconstrains?.length > 0 ? (
                                             <div className="space-y-4">
-                                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                    Constrain
-                                                </h5>
-                                                {progress.tahapanconstrains.map(
-                                                    (constrain) => (
+                                                {progress.tahapanconstrains.map((constrain) => {
+                                                    const constrainStatus = constrain.constraindata?.status ?? "pending";
+                                                    const hasPermission = userPermissions.includes(progress.projecttahapan_id);
+
+                                                    return (
                                                         <div
                                                             key={constrain.id}
                                                             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm"
                                                         >
                                                             <div className="flex justify-between items-center mb-2">
                                                                 <div className="flex items-center space-x-2">
-                                                                    {constrain.type ===
-                                                                        "schedule" && (
+                                                                    {constrain.type === "schedule" && (
                                                                         <svg
                                                                             className="w-5 h-5 text-gray-500"
                                                                             fill="none"
@@ -389,8 +376,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                             />
                                                                         </svg>
                                                                     )}
-                                                                    {constrain.type ===
-                                                                        "upload_file" && (
+                                                                    {constrain.type === "upload_file" && (
                                                                         <svg
                                                                             className="w-6 h-6 text-gray-500"
                                                                             fill="none"
@@ -404,8 +390,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                             />
                                                                         </svg>
                                                                     )}
-                                                                    {constrain.type ===
-                                                                        "text" && (
+                                                                    {constrain.type === "text" && (
                                                                         <svg
                                                                             className="w-5 h-5 text-gray-500"
                                                                             fill="none"
@@ -421,171 +406,64 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                         </svg>
                                                                     )}
                                                                     <h6 className="text-md font-semibold text-gray-900 dark:text-white">
-                                                                        {constrain.name ||
-                                                                            "Unnamed Constrain"}
+                                                                        {constrain.name || "Unnamed Constrain"}
                                                                     </h6>
                                                                 </div>
                                                                 <span
                                                                     className={`text-sm font-medium ${
-                                                                        constrain.status ===
-                                                                        "confirmed"
+                                                                        constrainStatus === "confirmed" || constrainStatus === "fulfilled"
                                                                             ? "text-green-600"
-                                                                            : constrain.status ===
-                                                                              "fulfilled"
-                                                                            ? "text-blue-600"
                                                                             : "text-red-600"
                                                                     }`}
                                                                 >
-                                                                    {constrain.status ===
-                                                                    "confirmed"
-                                                                        ? "Dikonfirmasi"
-                                                                        : constrain.status ===
-                                                                          "fulfilled"
+                                                                    {constrainStatus === "confirmed" || constrainStatus === "fulfilled"
                                                                         ? "Terpenuhi"
                                                                         : "Pending"}
                                                                 </span>
                                                             </div>
 
-                                                            {!editConstrain[
-                                                                constrain.id
-                                                            ] ? (
+                                                            {/* Tampilkan data constrain yang sudah diisi untuk semua user */}
+                                                            {(constrainStatus === "fulfilled" || constrainStatus === "confirmed") &&
+                                                                renderConstrainData(constrain)
+                                                            }
+
+                                                            {/* Form edit hanya untuk user yang berwenang */}
+                                                            {!editConstrain[constrain.id] ? (
                                                                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                                    {constrain.type ===
-                                                                        "schedule" && (
-                                                                        <p>
-                                                                            Jadwal:{" "}
-                                                                            {constrain.value ||
-                                                                                "Belum diisi"}
-                                                                        </p>
-                                                                    )}
-                                                                    {constrain.type ===
-                                                                        "upload_file" && (
-                                                                        <p>
-                                                                            File:{" "}
-                                                                            {constrain.file_path ? (
-                                                                                <a
-                                                                                    href={`/storage/${constrain.file_path}`}
-                                                                                    target="_blank"
-                                                                                    className="text-blue-600 hover:underline"
+                                                                    {hasPermission &&
+                                                                        progress.status === "current" && (
+                                                                            <div className="mt-2">
+                                                                                <button
+                                                                                    onClick={() => toggleEditConstrain(constrain.id)}
+                                                                                    className="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200"
                                                                                 >
-                                                                                    Lihat
-                                                                                </a>
-                                                                            ) : (
-                                                                                "Belum diunggah"
-                                                                            )}
-                                                                        </p>
-                                                                    )}
-                                                                    {constrain.type ===
-                                                                        "text" && (
-                                                                        <p>
-                                                                            Teks:{" "}
-                                                                            {constrain.value ||
-                                                                                "Belum diisi"}
-                                                                        </p>
-                                                                    )}
-                                                                    {userPermissions.includes(
-                                                                        progress.projecttahapan_id
-                                                                    ) &&
-                                                                        progress.status ===
-                                                                            "current" && (
-                                                                            <div className="mt-2 flex space-x-2">
-                                                                                {constrain.status ===
-                                                                                    "pending" && (
-                                                                                    <button
-                                                                                        onClick={() =>
-                                                                                            toggleEditConstrain(
-                                                                                                constrain.id
-                                                                                            )
-                                                                                        }
-                                                                                        className="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200"
-                                                                                    >
-                                                                                        Isi/Edit
-                                                                                    </button>
-                                                                                )}
-                                                                                {constrain.status ===
-                                                                                    "fulfilled" && (
-                                                                                    <>
-                                                                                        <button
-                                                                                            onClick={() =>
-                                                                                                confirmConstrain(
-                                                                                                    constrain.id
-                                                                                                )
-                                                                                            }
-                                                                                            className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-                                                                                            disabled={
-                                                                                                isLoading[
-                                                                                                    constrain
-                                                                                                        .id
-                                                                                                ]
-                                                                                            }
-                                                                                        >
-                                                                                            {isLoading[
-                                                                                                constrain
-                                                                                                    .id
-                                                                                            ]
-                                                                                                ? "Mengonfirmasi..."
-                                                                                                : "Konfirmasi"}
-                                                                                        </button>
-                                                                                        <button
-                                                                                            onClick={() =>
-                                                                                                toggleEditConstrain(
-                                                                                                    constrain.id
-                                                                                                )
-                                                                                            }
-                                                                                            className="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-200"
-                                                                                        >
-                                                                                            Edit
-                                                                                        </button>
-                                                                                    </>
-                                                                                )}
+                                                                                    {constrainStatus === "pending" ? "Isi" : "Edit"}
+                                                                                </button>
                                                                             </div>
                                                                         )}
                                                                 </div>
                                                             ) : (
                                                                 <form
-                                                                    onSubmit={(
-                                                                        e
-                                                                    ) => {
+                                                                    onSubmit={(e) => {
                                                                         e.preventDefault();
-                                                                        const formData =
-                                                                            new FormData(
-                                                                                e.currentTarget
-                                                                            );
-                                                                        formData.append(
-                                                                            "constrain_type",
-                                                                            constrain.type
-                                                                        ); // Gunakan type
-                                                                        formData.append(
-                                                                            "project_id",
-                                                                            project.id.toString()
-                                                                        );
+                                                                        const formData = new FormData(e.currentTarget);
+                                                                        formData.append("constrain_type", constrain.type);
+                                                                        formData.append("project_id", project.id.toString());
                                                                         formData.append(
                                                                             "status",
-                                                                            constrain.type ===
-                                                                                "schedule" ||
-                                                                                constrain.type ===
-                                                                                    "text"
-                                                                                ? formData.get(
-                                                                                      "value"
-                                                                                  )
+                                                                            constrain.type === "schedule" || constrain.type === "text"
+                                                                                ? formData.get("value")
                                                                                     ? "fulfilled"
                                                                                     : "pending"
-                                                                                : formData.get(
-                                                                                      "file"
-                                                                                  ) ||
-                                                                                  constrain.file_path
+                                                                                : formData.get("file")
                                                                                 ? "fulfilled"
                                                                                 : "pending"
                                                                         );
-                                                                        handleEditConstrain(
-                                                                            constrain.id,
-                                                                            formData
-                                                                        );
+                                                                        handleEditConstrain(constrain.id, formData);
                                                                     }}
                                                                     className="space-y-4"
                                                                 >
-                                                                    {constrain.type ===
-                                                                        "schedule" && (
+                                                                    {constrain.type === "schedule" && (
                                                                         <div>
                                                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                                                                 Jadwal
@@ -593,51 +471,22 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                             <input
                                                                                 type="datetime-local"
                                                                                 name="value"
-                                                                                defaultValue={
-                                                                                    constrain.value
-                                                                                        ? new Date(
-                                                                                              constrain.value
-                                                                                          )
-                                                                                              .toISOString()
-                                                                                              .slice(
-                                                                                                  0,
-                                                                                                  16
-                                                                                              )
-                                                                                        : ""
-                                                                                }
                                                                                 className="mt-1 w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
-                                                                                required // Sesuaikan dengan logika Anda
+                                                                                required
                                                                             />
                                                                         </div>
                                                                     )}
-                                                                    {constrain.type ===
-                                                                        "upload_file" && (
+                                                                    {constrain.type === "upload_file" && (
                                                                         <div>
                                                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                                                Unggah
-                                                                                File
+                                                                                Unggah File
                                                                             </label>
                                                                             <div
-                                                                                onDragEnter={
-                                                                                    handleDragEnter
-                                                                                }
-                                                                                onDragOver={
-                                                                                    handleDragOver
-                                                                                }
-                                                                                onDragLeave={
-                                                                                    handleDragLeave
-                                                                                }
-                                                                                onDrop={(
-                                                                                    e
-                                                                                ) =>
-                                                                                    handleDrop(
-                                                                                        e,
-                                                                                        constrain.id
-                                                                                    )
-                                                                                }
-                                                                                onClick={() =>
-                                                                                    fileInputRef.current?.click()
-                                                                                }
+                                                                                onDragEnter={handleDragEnter}
+                                                                                onDragOver={handleDragOver}
+                                                                                onDragLeave={handleDragLeave}
+                                                                                onDrop={(e) => handleDrop(e, constrain.id)}
+                                                                                onClick={() => fileInputRef.current?.click()}
                                                                                 className={`mt-1 p-4 border-2 border-dashed rounded-md text-center cursor-pointer ${
                                                                                     isDragging
                                                                                         ? "border-blue-500 bg-blue-50"
@@ -647,48 +496,23 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                                 <input
                                                                                     type="file"
                                                                                     name="file"
-                                                                                    ref={
-                                                                                        fileInputRef
-                                                                                    }
+                                                                                    ref={fileInputRef}
                                                                                     className="hidden"
-                                                                                    onChange={(
-                                                                                        e
-                                                                                    ) =>
-                                                                                        handleFileChange(
-                                                                                            e,
-                                                                                            constrain.id
-                                                                                        )
+                                                                                    onChange={(e) =>
+                                                                                        handleFileChange(e, constrain.id)
                                                                                     }
-                                                                                    required={
-                                                                                        !constrain.file_path
-                                                                                    } // Hanya wajib jika belum ada file
+                                                                                    required
                                                                                 />
                                                                                 <p className="text-sm text-gray-600 dark:text-gray-400">
                                                                                     {isDragging
                                                                                         ? "Drop file di sini"
                                                                                         : "Drag & drop atau klik untuk memilih"}
                                                                                 </p>
-                                                                                <p className="text-xs text-gray-500">
-                                                                                    Maks.
-                                                                                    10MB
-                                                                                </p>
-                                                                                {constrain.file_path && (
-                                                                                    <p className="mt-2 text-blue-600">
-                                                                                        <a
-                                                                                            href={`/storage/${constrain.file_path}`}
-                                                                                            target="_blank"
-                                                                                        >
-                                                                                            File
-                                                                                            saat
-                                                                                            ini
-                                                                                        </a>
-                                                                                    </p>
-                                                                                )}
+                                                                                <p className="text-xs text-gray-500">Maks. 10MB</p>
                                                                             </div>
                                                                         </div>
                                                                     )}
-                                                                    {constrain.type ===
-                                                                        "text" && (
+                                                                    {constrain.type === "text" && (
                                                                         <div>
                                                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                                                                 Teks
@@ -696,12 +520,8 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                             <input
                                                                                 type="text"
                                                                                 name="value"
-                                                                                defaultValue={
-                                                                                    constrain.value ||
-                                                                                    ""
-                                                                                }
                                                                                 className="mt-1 w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500"
-                                                                                required // Sesuaikan dengan logika Anda
+                                                                                required
                                                                             />
                                                                         </div>
                                                                     )}
@@ -709,27 +529,15 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                         <button
                                                                             type="submit"
                                                                             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-                                                                            disabled={
-                                                                                isLoading[
-                                                                                    constrain
-                                                                                        .id
-                                                                                ]
-                                                                            }
+                                                                            disabled={isLoading[constrain.id]}
                                                                         >
-                                                                            {isLoading[
-                                                                                constrain
-                                                                                    .id
-                                                                            ]
+                                                                            {isLoading[constrain.id]
                                                                                 ? "Menyimpan..."
                                                                                 : "Simpan"}
                                                                         </button>
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() =>
-                                                                                toggleEditConstrain(
-                                                                                    constrain.id
-                                                                                )
-                                                                            }
+                                                                            onClick={() => toggleEditConstrain(constrain.id)}
                                                                             className="px-4 py-2 border rounded-md text-gray-700 dark:text-gray-200 dark:border-gray-600 hover:bg-gray-50"
                                                                         >
                                                                             Batal
@@ -738,28 +546,22 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                                                 </form>
                                                             )}
                                                         </div>
-                                                    )
-                                                )}
+                                                    );
+                                                })}
                                             </div>
                                         ) : (
                                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                Tidak ada constrain untuk
-                                                tahapan ini.
+                                                Tidak ada constrain untuk tahapan ini.
                                             </p>
                                         )}
 
-                                        {userPermissions.includes(
-                                            progress.projecttahapan_id
-                                        ) &&
+                                        {/* Tombol konfirmasi tahapan - hanya tampil jika semua constrain terpenuhi */}
+                                        {userPermissions.includes(progress.projecttahapan_id) &&
                                             canConfirmStep(progress) && (
                                                 <button
-                                                    onClick={() =>
-                                                        confirmStep(progress.id)
-                                                    }
+                                                    onClick={() => confirmStep(progress.id)}
                                                     className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-                                                    disabled={
-                                                        isLoading[progress.id]
-                                                    }
+                                                    disabled={isLoading[progress.id]}
                                                 >
                                                     {isLoading[progress.id]
                                                         ? "Mengonfirmasi..."
@@ -785,25 +587,18 @@ const ShowPermintaan: React.FC<PageProps> = ({
                             <div className="relative">
                                 <div className="absolute top-0 bottom-0 left-2 w-0.5 bg-gray-200 dark:bg-gray-600"></div>
                                 {logAktivitas.map((log) => (
-                                    <div
-                                        key={log.id}
-                                        className="relative flex items-start mb-6"
-                                    >
+                                    <div key={log.id} className="relative flex items-start mb-6">
                                         <div className="w-4 h-4 bg-blue-500 rounded-full absolute left-0 top-1"></div>
                                         <div className="ml-8">
                                             <p className="text-sm text-gray-600 dark:text-gray-300">
                                                 <strong>
-                                                    {log.users?.name ||
-                                                        "Pengguna Tidak Diketahui"}
+                                                    {log.users?.name || "Pengguna Tidak Diketahui"}
                                                 </strong>{" "}
-                                                - {log.action}:{" "}
-                                                {log.description}
+                                                - {log.action}: {log.description}
                                             </p>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                                 {log.created_at
-                                                    ? new Date(
-                                                          log.created_at
-                                                      ).toLocaleString("id-ID")
+                                                    ? new Date(log.created_at).toLocaleString("id-ID")
                                                     : "Tanggal tidak tersedia"}
                                             </p>
                                         </div>
@@ -811,9 +606,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-gray-500 dark:text-gray-400">
-                                Belum ada log aktivitas.
-                            </p>
+                            <p className="text-gray-500 dark:text-gray-400">Belum ada log aktivitas.</p>
                         )}
                     </div>
                 </div>

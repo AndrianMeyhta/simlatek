@@ -24,7 +24,12 @@ const ConstrainIndex: React.FC = () => {
         target_table: "",
         target_column: "",
         dokumenkategori_id: null,
+        relasi: "",
+        isTesting: false,
+        testingtype: "",
     });
+
+    const relationOptions = ["rapat", "testing", "rekomendasi", "project"];
 
     const { data: constraints, isLoading } = useQuery<Constraint[]>({
         queryKey: ["constraints"],
@@ -45,6 +50,9 @@ const ConstrainIndex: React.FC = () => {
                 target_table: newConstraint.target_table,
                 target_column: newConstraint.target_column,
                 dokumenkategori_id: newConstraint.dokumenkategori_id ? Number(newConstraint.dokumenkategori_id) : null,
+                relasi: newConstraint.relasi || null,
+                isTesting: newConstraint.isTesting || false, // Tambahkan ini
+                testingtype: newConstraint.isTesting ? newConstraint.testingtype || null : null,
             };
             return axios.post("/constrain", payload, {
                 headers: {
@@ -55,9 +63,6 @@ const ConstrainIndex: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["constraints"] });
             resetForm();
-        },
-        onError: (error) => {
-            console.error("Gagal menambahkan constraint:", error);
         },
     });
 
@@ -71,6 +76,9 @@ const ConstrainIndex: React.FC = () => {
                 target_table: updatedConstraint.target_table,
                 target_column: updatedConstraint.target_column,
                 dokumenkategori_id: updatedConstraint.dokumenkategori_id ? Number(updatedConstraint.dokumenkategori_id) : null,
+                relasi: updatedConstraint.relasi || null,
+                isTesting: updatedConstraint.isTesting || false,
+                testingtype: updatedConstraint.isTesting ? updatedConstraint.testingtype || null : null,
             };
             return axios.put(`/constrain/${updatedConstraint.id}`, payload, {
                 headers: {
@@ -81,9 +89,6 @@ const ConstrainIndex: React.FC = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["constraints"] });
             resetForm();
-        },
-        onError: (error) => {
-            console.error("Gagal memperbarui constraint:", error);
         },
     });
 
@@ -121,6 +126,9 @@ const ConstrainIndex: React.FC = () => {
             target_table: constraint.detail.target_table,
             target_column: constraint.detail.target_column,
             dokumenkategori_id: constraint.detail.dokumenkategori_id?.toString() || null,
+            relasi: constraint.detail.relasi || "",
+            isTesting: constraint.detail.isTesting || false,
+            testingtype: constraint.detail.testingtype || "",
         });
     };
 
@@ -140,6 +148,9 @@ const ConstrainIndex: React.FC = () => {
             target_table: "",
             target_column: "",
             dokumenkategori_id: null,
+            relasi: "",
+            isTesting: false,
+            testingtype: "",
         });
     };
 
@@ -167,6 +178,7 @@ const ConstrainIndex: React.FC = () => {
                         onSubmit={handleSubmit}
                         isPending={createMutation.isPending || updateMutation.isPending}
                         resetForm={resetForm}
+                        relationOptions={relationOptions}
                     />
 
                     {/* Daftar */}

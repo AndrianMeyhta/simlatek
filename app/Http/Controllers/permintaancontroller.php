@@ -158,6 +158,9 @@ class PermintaanController extends Controller
                 return response()->json(['message' => 'Detail constrain tidak lengkap atau tidak valid'], 422);
             }
 
+            // Ambil relasi_type secara dinamis dari detail->relasi jika ada, fallback ke default
+            $relasiType = $detail['relasi'] ?? 'App\Models\ProjectProgress';
+
             if ($request->constrain_type === 'upload_file' && $request->hasFile('file')) {
                 $file = $request->file('file');
                 if ($file->getSize() > 10 * 1024 * 1024) {
@@ -175,15 +178,33 @@ class PermintaanController extends Controller
                 ];
                 $dokumenId = DB::table('dokumens')->insertGetId($dokumenData);
 
-                // Simpan relasi ke dokumenrelasis
+                // Simpan relasi ke dokumenrelasis dengan relasi_type dinamis
                 $relasiData = [
                     'dokumen_id' => $dokumenId,
-                    'relasi_type' => 'App\Models\ProjectProgress', // Namespace model ProjectProgress
-                    'relasi_id' => $progress->id, // ID dari ProjectProgress
+                    'relasi_type' => $relasiType, // Dinamis dari detail->relasi
+                    'relasi_id' => $progress->id,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
                 DB::table('dokumenrelasis')->insert($relasiData);
+
+                // Jika isTesting true, insert ke tabel testings
+                if (isset($detail['isTesting']) && $detail['isTesting'] === true) {
+                    DB::table('testings')->insert([
+                        'project_id' => $progress->project_id,
+                        'testingtype' => $detail['testingtype'] ?? 'Fungsi', // Ambil dari detail, fallback ke 'Fungsi'
+                        'description' => null, // Description null sesuai permintaan
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                Logaktivitas::create([
+                    'projectprogress_id' => $progress->id,
+                    'user_id' => Auth::id(),
+                    'action' => 'Update',
+                    'description' => 'Mengupload sebuah file ',
+                ]);
 
                 $constraindata->update(['status' => 'fulfilled']);
             } elseif ($request->constrain_type === 'schedule' || $request->constrain_type === 'text') {
@@ -199,26 +220,17 @@ class PermintaanController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
-                if ($detail['target_table'] === 'dokumens') {
-                    $data['filename'] = 'text_input_' . now()->timestamp;
-                    $data['dokumenkategori_id'] = $detail['dokumenkategori_id'] ?? null;
-                    $dokumenId = DB::table('dokumens')->insertGetId($data);
-
-                    // Simpan relasi ke dokumenrelasis untuk text (jika diperlukan)
-                    $relasiData = [
-                        'dokumen_id' => $dokumenId,
-                        'relasi_type' => 'App\Models\ProjectProgress',
-                        'relasi_id' => $progress->id,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                    DB::table('dokumenrelasis')->insert($relasiData);
-                } else {
-                    DB::table($detail['target_table'])->insert($data);
-                }
+                Logaktivitas::create([
+                    'projectprogress_id' => $progress->id,
+                    'user_id' => Auth::id(),
+                    'action' => 'Update',
+                    'description' => $request->constrain_type === 'schedule' ? "Menyiapkan Jadwal Rapat" : "Catatan",
+                ]);
+                DB::table($detail['target_table'])->insert($data);
             } else {
                 return response()->json(['message' => 'Tipe constrain tidak valid'], 422);
             }
+
 
             return response()->json(['message' => 'Constrain updated']);
         } catch (\Exception $e) {
@@ -228,13 +240,22 @@ class PermintaanController extends Controller
 
     public function show(Permintaan $permintaan)
     {
+        $currentProjectId = $permintaan->projects->id;
+
         $permintaan->load([
-            'projects' => function ($query) {
+            'projects' => function ($query) use ($currentProjectId) {
                 $query->with([
-                    'progress' => function ($query) {
-                        $query->with(['tahapan' => function ($query) {
-                            $query->withDefault(['name' => 'Tahapan Tidak Diketahui']);
-                        }, 'tahapanconstrains.constraindata']);
+                    'progress' => function ($query) use ($currentProjectId) {
+                        $query->with([
+                            'tahapan' => function ($query) {
+                                $query->withDefault(['name' => 'Tahapan Tidak Diketahui']);
+                            },
+                            'tahapanconstrains' => function ($query) use ($currentProjectId) {
+                                $query->with(['constraindata' => function ($query) use ($currentProjectId) {
+                                    $query->where('project_id', $currentProjectId);
+                                }]);
+                            }
+                        ]);
                     },
                     'dikelola'
                 ]);
@@ -242,7 +263,14 @@ class PermintaanController extends Controller
             'users'
         ]);
 
-        // Ambil data dari target_table untuk setiap constrain
+        $permintaanDokumens = DB::table('dokumenrelasis')
+        ->join('dokumens', 'dokumenrelasis.dokumen_id', '=', 'dokumens.id')
+        ->where('dokumenrelasis.relasi_type', 'App\Models\Permintaan')
+        ->where('dokumenrelasis.relasi_id', $permintaan->id)
+        ->select('dokumens.id', 'dokumens.filename', 'dokumens.filepath', 'dokumens.dokumenkategori_id')
+        ->get();
+
+        // Ambil data dari target_table untuk setiap constrain dengan filter project_id
         foreach ($permintaan->projects->progress as $progress) {
             foreach ($progress->tahapanconstrains as $constrain) {
                 $detail = $constrain->detail;
@@ -250,14 +278,14 @@ class PermintaanController extends Controller
                     if ($detail['target_table'] === 'dokumens') {
                         $constrain->target_data = DB::table('dokumenrelasis')
                             ->join('dokumens', 'dokumenrelasis.dokumen_id', '=', 'dokumens.id')
-                            ->where('dokumenrelasis.relasi_type', 'App\Models\ProjectProgress')
+                            ->where('dokumenrelasis.relasi_type', $detail['relasi'])
                             ->where('dokumenrelasis.relasi_id', $progress->id)
                             ->where('dokumens.dokumenkategori_id', $detail['dokumenkategori_id'] ?? null)
                             ->select('dokumens.filename', 'dokumens.filepath')
                             ->first();
                     } elseif ($detail['target_table'] === 'rapats') {
                         $constrain->target_data = DB::table('rapats')
-                            ->where('project_id', $progress->project_id)
+                            ->where('project_id', $currentProjectId) // Tambahkan filter project_id
                             ->select('jadwalrapat')
                             ->first();
                     }
@@ -278,6 +306,7 @@ class PermintaanController extends Controller
             'projectprogresses' => $permintaan->projects->progress,
             'logAktivitas' => $logAktivitas,
             'userPermissions' => $userPermissions,
+            'permintaanDokumens' => $permintaanDokumens,
         ]);
     }
 
@@ -317,7 +346,7 @@ class PermintaanController extends Controller
                 Logaktivitas::create([
                     'projectprogress_id' => $progress->id,
                     'user_id' => Auth::id(),
-                    'action' => 'confirm_step',
+                    'action' => 'Confirm Step',
                     'description' => 'Tahapan ' . $progress->tahapan->name . ' dikonfirmasi',
                 ]);
             });

@@ -15,6 +15,9 @@ export interface Constraint {
         target_table: string;
         target_column: string;
         dokumenkategori_id?: number | null;
+        relasi?: string;
+        isTesting?: boolean;
+        testingtype?: string;
     };
     project_tahapan?: { name: string };
 }
@@ -27,12 +30,15 @@ export interface DokumenKategori {
 export interface ConstrainFormData {
     id: number | null;
     projecttahapan_id: string;
-    type: "schedule" | "upload_file" | "text";
+    type: string;
     name: string;
     required: boolean;
     target_table: string;
     target_column: string;
     dokumenkategori_id: string | null;
+    relasi?: string;
+    isTesting?: boolean; // Tambahkan ini
+    testingtype?: string; // Tambahkan ini
 }
 
 export interface Props extends Record<string, any> {
@@ -123,6 +129,7 @@ export interface ConstrainFormProps {
     onSubmit: (e: React.FormEvent) => void;
     isPending: boolean;
     resetForm: () => void;
+    relationOptions: string[];
 }
 
 export interface AddButtonProps {
@@ -232,4 +239,5 @@ export interface PageProps {
     projectprogresses: ProjectProgress[];
     logAktivitas: LogAktivitas[];
     userPermissions: number[];
+    permintaanDokumens: { id: number; filename: string; filepath: string; dokumenkategori_id: number }[];
 }

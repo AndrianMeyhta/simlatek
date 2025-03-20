@@ -1,15 +1,56 @@
 // resources/js/Components/ConstrainForm.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { ConstrainFormProps } from "../types";
 
-const ConstrainForm: React.FC<ConstrainFormProps> = ({ form, setForm, tahapans, dokumenKategoris, onSubmit, isPending, resetForm }) => {
+const ConstrainForm: React.FC<ConstrainFormProps> = ({
+    form,
+    setForm,
+    tahapans,
+    dokumenKategoris,
+    onSubmit,
+    isPending,
+    resetForm,
+    relationOptions,
+}) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
-        setForm({
-            ...form,
-            [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
-        });
+        const newValue = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
+
+        // Jika tipe diubah, atur target_table dan target_column sesuai kondisi
+        if (name === "type") {
+            if (value === "upload_file") {
+                setForm({
+                    ...form,
+                    [name]: value,
+                    target_table: "dokumens",
+                    target_column: "filepath",
+                });
+            } else {
+                setForm({
+                    ...form,
+                    [name]: value,
+                    target_table: "",
+                    target_column: "",
+                });
+            }
+        } else {
+            setForm({
+                ...form,
+                [name]: newValue,
+            });
+        }
     };
+
+    // Efek untuk memastikan target_table dan target_column sesuai saat form.type berubah
+    useEffect(() => {
+        if (form.type === "upload_file" && (form.target_table !== "dokumens" || form.target_column !== "filepath")) {
+            setForm({
+                ...form,
+                target_table: "dokumens",
+                target_column: "filepath",
+            });
+        }
+    }, [form.type]);
 
     return (
         <form onSubmit={onSubmit} className="bg-white p-6 rounded-xl shadow-lg space-y-6 transition-all duration-300">
@@ -83,6 +124,7 @@ const ConstrainForm: React.FC<ConstrainFormProps> = ({ form, setForm, tahapans, 
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                         placeholder="Contoh: rapats"
                         required
+                        disabled={form.type === "upload_file"} // Disable saat upload_file
                     />
                 </div>
 
@@ -96,26 +138,76 @@ const ConstrainForm: React.FC<ConstrainFormProps> = ({ form, setForm, tahapans, 
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                         placeholder="Contoh: jadwalrapat"
                         required
+                        disabled={form.type === "upload_file"} // Disable saat upload_file
                     />
                 </div>
 
                 {form.type === "upload_file" && (
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Kategori Dokumen</label>
-                        <select
-                            name="dokumenkategori_id"
-                            value={form.dokumenkategori_id || ""}
-                            onChange={(e) => setForm({ ...form, dokumenkategori_id: e.target.value || null })}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                        >
-                            <option value="">Pilih Kategori (Opsional)</option>
-                            {dokumenKategoris.map((kategori) => (
-                                <option key={kategori.id} value={kategori.id}>
-                                    {kategori.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Kategori Dokumen</label>
+                            <select
+                                name="dokumenkategori_id"
+                                value={form.dokumenkategori_id || ""}
+                                onChange={(e) => setForm({ ...form, dokumenkategori_id: e.target.value || null })}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                            >
+                                <option value="">Pilih Kategori (Opsional)</option>
+                                {dokumenKategoris.map((kategori) => (
+                                    <option key={kategori.id} value={kategori.id}>
+                                        {kategori.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Relasi ke</label>
+                            <select
+                                name="relasi"
+                                value={form.relasi || ""}
+                                onChange={handleChange}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                            >
+                                <option value="">Pilih Relasi (Opsional)</option>
+                                {relationOptions.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="md:col-span-2 flex items-center">
+                            <label className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    name="isTesting"
+                                    checked={form.isTesting || false}
+                                    onChange={handleChange}
+                                    className="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                />
+                                <span className="text-sm text-gray-700">Testing</span>
+                            </label>
+                        </div>
+
+                        {form.isTesting && (
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Testing Type</label>
+                                <select
+                                    name="testingtype"
+                                    value={form.testingtype || ""}
+                                    onChange={handleChange}
+                                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                                >
+                                    <option value="">Pilih Tipe Testing</option>
+                                    <option value="Fungsi">Fungsi</option>
+                                    <option value="Keamanan">Keamanan</option>
+                                    <option value="Performa">Performa</option>
+                                </select>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 

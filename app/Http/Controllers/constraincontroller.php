@@ -32,7 +32,10 @@ class ConstrainController extends Controller
             'required' => 'required|boolean',
             'target_table' => 'required|string',
             'target_column' => 'required|string',
-            'dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id', // Opsional, hanya untuk upload_file
+            'dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id',
+            'relasi' => 'nullable|in:rapat,testing,rekomendasi,project',
+            'isTesting' => 'nullable|boolean', // Tambahkan ini
+            'testingtype' => 'nullable|in:Fungsi,Keamanan,Performa', // Tambahkan ini
         ]);
 
         $detail = [
@@ -40,12 +43,21 @@ class ConstrainController extends Controller
             'required' => $request->required,
             'target_table' => $request->target_table,
             'target_column' => $request->target_column,
-            'dokumenkategori_id' => null, // Default null
+            'dokumenkategori_id' => null,
+            'relasi' => null,
+            'isTesting' => $request->isTesting ?? false, // Tambahkan ini
         ];
 
-        // Jika type adalah upload_file, gunakan dokumenkategori_id dari request
         if ($request->type === 'upload_file') {
             $detail['dokumenkategori_id'] = $request->dokumenkategori_id;
+            if ($request->relasi) {
+                $detail['relasi'] = "App\\Models\\" . ucfirst($request->relasi);
+            }
+            if ($request->isTesting && $request->testingtype) {
+                $detail['testingtype'] = $request->testingtype; // Hanya simpan jika isTesting true
+            }
+        } else {
+            unset($detail['testingtype']); // Pastikan testingtype tidak ada jika bukan upload_file
         }
 
         $constraint = TahapanConstrain::create([
@@ -70,7 +82,10 @@ class ConstrainController extends Controller
             'required' => 'required|boolean',
             'target_table' => 'required|string',
             'target_column' => 'required|string',
-            'dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id', // Opsional, hanya untuk upload_file
+            'dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id',
+            'relasi' => 'nullable|in:rapat,testing,rekomendasi,project',
+            'isTesting' => 'nullable|boolean', // Tambahkan ini
+            'testingtype' => 'nullable|in:Fungsi,Keamanan,Performa', // Tambahkan ini
         ]);
 
         $detail = [
@@ -78,14 +93,25 @@ class ConstrainController extends Controller
             'required' => $request->required,
             'target_table' => $request->target_table,
             'target_column' => $request->target_column,
-            'dokumenkategori_id' => $constraint->detail['dokumenkategori_id'] ?? null, // Pertahankan jika ada
+            'dokumenkategori_id' => $constraint->detail['dokumenkategori_id'] ?? null,
+            'relasi' => $constraint->detail['relasi'] ?? null,
+            'isTesting' => $request->isTesting ?? false, // Tambahkan ini
         ];
 
-        // Jika type adalah upload_file, gunakan dokumenkategori_id dari request
         if ($request->type === 'upload_file') {
             $detail['dokumenkategori_id'] = $request->dokumenkategori_id;
-        } elseif ($request->type !== 'upload_file') {
-            $detail['dokumenkategori_id'] = null; // Reset jika bukan upload_file
+            if ($request->relasi) {
+                $detail['relasi'] = "App\\Models\\" . ucfirst($request->relasi);
+            }
+            if ($request->isTesting && $request->testingtype) {
+                $detail['testingtype'] = $request->testingtype; // Hanya simpan jika isTesting true
+            } else {
+                unset($detail['testingtype']); // Hapus jika tidak testing
+            }
+        } else {
+            $detail['dokumenkategori_id'] = null;
+            $detail['relasi'] = null;
+            unset($detail['testingtype']); // Pastikan testingtype tidak ada jika bukan upload_file
         }
 
         $constraint->update([

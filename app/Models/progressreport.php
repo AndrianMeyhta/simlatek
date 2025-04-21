@@ -6,10 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class progressreport extends Model
 {
-    protected $fillable = ['projectprogress_id', 'description', 'percentage_change'];
+    protected $fillable = ['permintaanprogress_id', 'description', 'percentage_change'];
 
-    public function projectprogress()
+    public function permintaanprogress()
     {
-        return $this->belongsTo(Projectprogress::class);
+        return $this->belongsTo(Permintaanprogress::class);
+    }
+
+    public function documents()
+    {
+        return $this->morphMany(Dokumenrelasi::class, 'relasi')->with('dokumen');
     }
 }

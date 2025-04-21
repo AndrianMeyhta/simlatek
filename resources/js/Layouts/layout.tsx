@@ -1,8 +1,12 @@
 import React, { useState, useEffect, ReactNode } from "react";
 import { usePage, Link } from "@inertiajs/react";
-import { confirmAlert } from "../Components/sweetAlert";
+import {
+    successAlert,
+    confirmAlert,
+    errorAlert,
+} from "../Components/sweetAlert";
 import axios from "axios";
-import { User, ThemeColors  } from "../types";
+import { User, ThemeColors } from "../types";
 import {
     Grid,
     Database,
@@ -10,10 +14,13 @@ import {
     FolderOpen,
     Box,
     Lock,
+    UserCog,
     LogOut,
     ChevronLeft,
     ChevronRight,
+    Settings,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 interface MenuItem {
     id: string;
@@ -22,6 +29,13 @@ interface MenuItem {
     icon?: ReactNode;
     isItem?: boolean;
     type?: "separator";
+    onClick?: () => void;
+}
+
+interface ActivePermintaan {
+    id: number;
+    permintaan_id: number;
+    title?: string;
 }
 
 interface LayoutProps {
@@ -29,26 +43,67 @@ interface LayoutProps {
     children: ReactNode;
 }
 
+const fetchActivePermintaans = async () => {
+    const response = await axios.get("/active-permintaans", {
+        withCredentials: true,
+    });
+    return response.data;
+};
+
 const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
     const [collapsed, setCollapsed] = useState<boolean>(false);
     const [activeItem, setActiveItem] = useState<string>(
-        currentActive || "dashboard"
+        currentActive || "dashboard",
     );
     const [darkMode, setDarkMode] = useState<boolean>(() => {
         const savedTheme = localStorage.getItem("theme");
         return savedTheme ? savedTheme === "dark" : true;
     });
+    const [isProfileModalOpen, setIsProfileModalOpen] =
+        useState<boolean>(false);
+    const [formData, setFormData] = useState<{
+        name: string;
+        email: string;
+        password: string;
+    }>({
+        name: "",
+        email: "",
+        password: "",
+    });
 
-    const { auth } = usePage<{ auth: { user: string; role: string } }>().props;
-    const [user] = useState<User>({
+    const { auth } = usePage<{
+        auth: { user: string; role: string; role_id?: number; email?: string };
+    }>().props;
+    const [user, setUser] = useState<User>({
         name: auth.user || "Guest",
         role: auth.role || "User",
+        id: auth.role_id || 0,
+        email: auth.email || "",
+    });
+
+    const isSuperadmin = auth.role === "Superadmin";
+
+    const { data: activePermintaans = [], isLoading } = useQuery({
+        queryKey: ["activePermintaans"],
+        queryFn: fetchActivePermintaans,
+        enabled: !isSuperadmin,
+        staleTime: 5 * 60 * 1000,
     });
 
     useEffect(() => {
         document.documentElement.classList.toggle("dark", darkMode);
         localStorage.setItem("theme", darkMode ? "dark" : "light");
     }, [darkMode]);
+
+    useEffect(() => {
+        setFormData({
+            name: user.name,
+            email: user.email || "",
+            password: "",
+        });
+    }, [user]);
+
+    console.log("auth:", auth);
 
     const toggleSidebar = (): void => setCollapsed((prev) => !prev);
     const toggleTheme = (): void => setDarkMode((prev) => !prev);
@@ -72,11 +127,61 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
             "Ya",
             "Batal",
             "Berhasil logout!",
-            "Logout gagal!"
+            "Logout gagal!",
         );
     };
 
-    const menuItems: MenuItem[] = [
+    const openProfileModal = (): void => {
+        setFormData({
+            name: user.name,
+            email: user.email || "",
+            password: "",
+        });
+        setIsProfileModalOpen(true);
+    };
+
+    const closeProfileModal = (): void => {
+        setIsProfileModalOpen(false);
+        setFormData((prev) => ({ ...prev, password: "" }));
+    };
+
+    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
+    };
+
+    const handleFormSubmit = async (e: React.FormEvent): Promise<void> => {
+        e.preventDefault();
+        try {
+            const payload = {
+                name: formData.name,
+                email: formData.email,
+                password: formData.password || undefined,
+            };
+            await axios.put(`/dashboard/users/${user.id}`, payload, {
+                withCredentials: true,
+            });
+            setUser((prev) => ({
+                ...prev,
+                name: formData.name,
+                email: formData.email,
+            }));
+            successAlert("Sukses!", "Profil berhasil diperbarui.");
+            closeProfileModal();
+        } catch (error: any) {
+            console.error("Update failed:", error);
+            const errorMessage =
+                error.response?.data?.message || "Gagal memperbarui profil.";
+            errorAlert("Gagal!", errorMessage);
+        }
+    };
+
+    const allowedRoleIds = [1, 5];
+
+    const superadminMenuItems: MenuItem[] = [
         {
             id: "dashboard",
             icon: <Grid size={20} />,
@@ -100,6 +205,13 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
             to: "/permintaan",
             isItem: true,
         },
+        {
+            id: "aplikasi_daftar",
+            icon: <FolderOpen size={20} />,
+            label: "Aplikasi",
+            to: "/aplikasi",
+            isItem: true,
+        },
         { id: "manage", type: "separator", label: "Manage" },
         {
             id: "database",
@@ -115,7 +227,77 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
             to: "/constrain",
             isItem: true,
         },
+        {
+            id: "userskill",
+            icon: <UserCog size={20} />,
+            label: "User Skill",
+            to: "/user-management",
+            isItem: true,
+        },
     ];
+
+    const nonSuperadminMenuItems: MenuItem[] = [
+        {
+            id: "dashboard",
+            icon: <Grid size={20} />,
+            label: "Dashboard",
+            to: "/dashboard",
+            isItem: true,
+        },
+        { id: "pengajuan", type: "separator", label: "Pengajuan" },
+        ...(allowedRoleIds.includes(auth.role_id || 0)
+            ? [
+                  {
+                      id: "permohonan_pengajuan",
+                      icon: <FileText size={20} />,
+                      label: "Permohonan",
+                      to: "/permintaan/create",
+                      isItem: true,
+                  },
+              ]
+            : []),
+        {
+            id: "active_permintaan",
+            type: "separator",
+            label: "Permintaan Aktif",
+        },
+        ...(activePermintaans.length > 0
+            ? activePermintaans
+                  .slice(0, 5)
+                  .map((permintaan: ActivePermintaan) => ({
+                      id: `permintaan_${permintaan.permintaan_id}`,
+                      icon: <FolderOpen size={20} />,
+                      label:
+                          permintaan.title ||
+                          `Permintaan #${permintaan.permintaan_id}`,
+                      to: `/permintaan/${permintaan.permintaan_id}`,
+                      isItem: true,
+                  }))
+            : [
+                  {
+                      id: "no_permintaan",
+                      icon: <FolderOpen size={20} />,
+                      label: "Tidak ada permintaan aktif",
+                      to: "#",
+                      isItem: true,
+                  },
+              ]),
+        ...(activePermintaans.length > 5
+            ? [
+                  {
+                      id: "see_all_permintaan",
+                      icon: <FolderOpen size={20} />,
+                      label: "Lihat Semua Permintaan Aktif",
+                      to: "/permintaan",
+                      isItem: true,
+                  },
+              ]
+            : []),
+    ];
+
+    const menuItems = isSuperadmin
+        ? superadminMenuItems
+        : nonSuperadminMenuItems;
 
     const getThemeColors = (): ThemeColors =>
         darkMode
@@ -130,7 +312,7 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
                       "bg-gradient-to-r from-blue-500/50 to-indigo-500/50",
                   activeText: "text-indigo-400",
                   separator: "text-indigo-400",
-                  cardBg: "bg-gray-900/20 backdrop-blur-xl",
+                  cardBg: "bg-gray-900/80 backdrop-blur-xl",
               }
             : {
                   bg: "bg-gray-200",
@@ -143,7 +325,7 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
                       "bg-gradient-to-r from-blue-600/20 to-indigo-600/20",
                   activeText: "text-indigo-600",
                   separator: "text-indigo-500",
-                  cardBg: "bg-white/20 backdrop-blur-xl",
+                  cardBg: "bg-white/80 backdrop-blur-xl",
               };
 
     const theme: ThemeColors = getThemeColors();
@@ -262,12 +444,15 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
                                             </span>
                                         </div>
                                     ) : (
-                                        <Link
-                                            href={item.to!}
-                                            onClick={() =>
-                                                handleNavigate(item.id)
-                                            }
-                                            className={`flex items-center ${
+                                        <button
+                                            onClick={() => {
+                                                if (item.onClick) {
+                                                    item.onClick();
+                                                } else {
+                                                    handleNavigate(item.id);
+                                                }
+                                            }}
+                                            className={`flex items-center w-full text-left ${
                                                 collapsed
                                                     ? "justify-center p-3"
                                                     : "p-2 px-4"
@@ -279,36 +464,67 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
                                                     : theme.textSecondary
                                             }`}
                                         >
-                                            {item.icon}
-                                            {!collapsed && (
-                                                <span className="ml-3">
-                                                    {item.label}
-                                                </span>
+                                            {item.to ? (
+                                                <Link
+                                                    href={item.to}
+                                                    className="flex items-center w-full"
+                                                >
+                                                    {item.icon}
+                                                    {!collapsed && (
+                                                        <span className="ml-3">
+                                                            {item.label}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            ) : (
+                                                <>
+                                                    {item.icon}
+                                                    {!collapsed && (
+                                                        <span className="ml-3">
+                                                            {item.label}
+                                                        </span>
+                                                    )}
+                                                </>
                                             )}
                                             {activeItem === item.id &&
                                                 !collapsed && (
                                                     <span className="ml-auto h-2 w-2 rounded-full bg-current"></span>
                                                 )}
-                                        </Link>
+                                        </button>
                                     )}
                                 </li>
                             ))}
                     </ul>
                 </div>
 
-                {/* Logout */}
-                <div
-                    className={`absolute bottom-0 w-full border-t ${theme.border}`}
-                >
-                    <button
-                        onClick={handleLogout}
-                        className={`w-full flex ${
-                            collapsed ? "justify-center p-4" : "p-4"
-                        } text-red-400 ${theme.hoverBg} transition-all`}
-                    >
-                        <LogOut size={20} />
-                        {!collapsed && <span className="ml-3">Logout</span>}
-                    </button>
+                <div className="absolute bottom-0 w-full">
+                    {/* Profile Settings */}
+                    <div className={`border-t ${theme.border}`}>
+                        <button
+                            onClick={openProfileModal}
+                            className={`w-full flex ${
+                                collapsed ? "justify-center p-4" : "p-4"
+                            } ${theme.textSecondary} ${theme.hoverBg} transition-all`}
+                        >
+                            <Settings size={20} />
+                            {!collapsed && (
+                                <span className="ml-3">Edit Profil</span>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className={`border-t ${theme.border}`}>
+                        <button
+                            onClick={handleLogout}
+                            className={`w-full flex ${
+                                collapsed ? "justify-center p-4" : "p-4"
+                            } text-red-400 ${theme.hoverBg} transition-all`}
+                        >
+                            <LogOut size={20} />
+                            {!collapsed && <span className="ml-3">Logout</span>}
+                        </button>
+                    </div>
                 </div>
             </aside>
 
@@ -319,6 +535,110 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
             >
                 {children}
             </main>
+
+            {/* Profile Settings Modal */}
+            {isProfileModalOpen && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 transition-opacity duration-300">
+                    <div
+                        className={`${theme.cardBg} p-8 rounded-2xl w-full max-w-md shadow-2xl transform transition-all duration-300 scale-100 border ${theme.border}`}
+                    >
+                        <div className="flex justify-between items-center mb-6">
+                            <h2
+                                className={`${theme.text} text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent`}
+                            >
+                                Edit Profile
+                            </h2>
+                            <button
+                                onClick={closeProfileModal}
+                                className={`${theme.textSecondary} hover:${theme.activeText} transition-colors`}
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-6 w-6"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                        <form onSubmit={handleFormSubmit}>
+                            <div className="mb-5">
+                                <label
+                                    className={`${theme.textSecondary} block text-sm font-medium mb-2`}
+                                    htmlFor="name"
+                                >
+                                    Name
+                                </label>
+                                <input
+                                    type="text"
+                                    id="name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleFormChange}
+                                    className={`w-full p-3 rounded-lg ${theme.bg} ${theme.text} border ${theme.border} focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all shadow-inner`}
+                                    required
+                                />
+                            </div>
+                            <div className="mb-5">
+                                <label
+                                    className={`${theme.textSecondary} block text-sm font-medium mb-2`}
+                                    htmlFor="email"
+                                >
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleFormChange}
+                                    className={`w-full p-3 rounded-lg ${theme.bg} ${theme.text} border ${theme.border} focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all shadow-inner`}
+                                    required
+                                />
+                            </div>
+                            <div className="mb-6">
+                                <label
+                                    className={`${theme.textSecondary} block text-sm font-medium mb-2`}
+                                    htmlFor="password"
+                                >
+                                    Password (optional)
+                                </label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleFormChange}
+                                    className={`w-full p-3 rounded-lg ${theme.bg} ${theme.text} border ${theme.border} focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all shadow-inner`}
+                                    placeholder="Leave blank to keep current"
+                                />
+                            </div>
+                            <div className="flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={closeProfileModal}
+                                    className={`px-5 py-2 rounded-lg ${theme.textSecondary} bg-gray-500/10 hover:bg-gray-500/20 transition-colors font-medium`}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all font-medium shadow-md"
+                                >
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

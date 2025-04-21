@@ -39,7 +39,6 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $id,
             'password' => 'nullable|string|min:8',
-            'role_id' => 'required|exists:roles,id',
         ]);
 
         $user = User::findOrFail($id);
@@ -47,7 +46,6 @@ class UserController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => $request->password ? bcrypt($request->password) : $user->password,
-            'role_id' => $request->role_id,
         ]);
 
         return response()->json(['data' => User::with('role')->get()]);

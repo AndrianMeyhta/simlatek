@@ -4,9 +4,9 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use App\Models\projecttahapan;
+use App\Models\permintaantahapan;
 
-class ProjecttahapanSeeder extends Seeder
+class permintaantahapanSeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -76,6 +76,6 @@ class ProjecttahapanSeeder extends Seeder
                 'description' => 'Mengunggah file PSE ke dalam sistem dan menutup proyek setelah semua tahap selesai.'
             ]
         ];
-        projecttahapan::insert($tahapan);
+        permintaantahapan::insert($tahapan);
     }
 }

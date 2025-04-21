@@ -19,28 +19,35 @@ const CrudModal: React.FC<CrudModalProps> = ({
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        // Check if any select field has an empty value
-        const hasEmptySelect = fields.some((field) => {
-            if (
-                field.type === "select" &&
-                (!formData[field.key] || formData[field.key] === "")
-            ) {
-                return true;
+        // Check if any required field is empty
+        const hasInvalidField = fields.some((field) => {
+            const value = formData[field.key] || "";
+            if (field.required && !value) {
+                if (field.type === "select") {
+                    warningAlert(
+                        "Warning",
+                        `Please select a valid ${field.label} before saving.`,
+                    );
+                    return true;
+                }
+                if (
+                    field.type === "text" ||
+                    field.type === "number" ||
+                    field.type === "textarea"
+                ) {
+                    warningAlert(
+                        "Warning",
+                        `Please fill in the ${field.label} field before saving.`,
+                    );
+                    return true;
+                }
             }
             return false;
         });
 
-        if (hasEmptySelect) {
-            const selectFieldLabel =
-                fields.find((f) => f.type === "select")?.label || "option";
-            warningAlert(
-                'Warning', // Use default title ("WARNING" or "Peringatan")
-                `Please select a valid ${selectFieldLabel} before saving.`
-            );
-            return;
-        }
-        successAlert("Success", "Data berhasil disimpan");
+        if (hasInvalidField) return;
 
+        successAlert("Success", "Data berhasil disimpan");
         onSubmit(e); // Proceed with submit if valid
     };
 
@@ -60,11 +67,11 @@ const CrudModal: React.FC<CrudModalProps> = ({
                                 <select
                                     value={formData[field.key] || ""}
                                     onChange={(
-                                        e: React.ChangeEvent<HTMLSelectElement>
+                                        e: React.ChangeEvent<HTMLSelectElement>,
                                     ) => {
                                         console.log(
                                             `Changing ${field.key} to:`,
-                                            e.target.value
+                                            e.target.value,
                                         );
                                         onChange(field.key, e.target.value);
                                     }}
@@ -82,16 +89,51 @@ const CrudModal: React.FC<CrudModalProps> = ({
                                         </option>
                                     ))}
                                 </select>
+                            ) : field.type === "textarea" ? (
+                                <textarea
+                                    value={formData[field.key] || ""}
+                                    onChange={(
+                                        e: React.ChangeEvent<HTMLTextAreaElement>,
+                                    ) => {
+                                        console.log(
+                                            `Changing ${field.key} to:`,
+                                            e.target.value,
+                                        );
+                                        onChange(field.key, e.target.value);
+                                    }}
+                                    className="w-full p-2 border rounded-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    rows={3}
+                                    required={field.required !== false}
+                                />
+                            ) : field.type === "number" ? (
+                                <input
+                                    type="number"
+                                    value={formData[field.key] || ""}
+                                    onChange={(
+                                        e: React.ChangeEvent<HTMLInputElement>,
+                                    ) => {
+                                        console.log(
+                                            `Changing ${field.key} to:`,
+                                            e.target.value,
+                                        );
+                                        onChange(field.key, e.target.value);
+                                    }}
+                                    min={field.min}
+                                    max={field.max}
+                                    placeholder={field.placeholder}
+                                    className="w-full p-2 border rounded-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    required={field.required !== false}
+                                />
                             ) : (
                                 <input
                                     type={field.type}
                                     value={formData[field.key] || ""}
                                     onChange={(
-                                        e: React.ChangeEvent<HTMLInputElement>
+                                        e: React.ChangeEvent<HTMLInputElement>,
                                     ) => {
                                         console.log(
                                             `Changing ${field.key} to:`,
-                                            e.target.value
+                                            e.target.value,
                                         );
                                         onChange(field.key, e.target.value);
                                     }}

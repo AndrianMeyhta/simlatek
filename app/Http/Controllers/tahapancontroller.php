@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\projecttahapan;
+use App\Models\permintaantahapan;
 
 class tahapancontroller extends Controller
 {
     public function index()
     {
-        return response()->json(['data' => projecttahapan::all()]);
+        return response()->json(['data' => permintaantahapan::all()]);
     }
 
     public function store(Request $request)
@@ -18,10 +18,10 @@ class tahapancontroller extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string|max:255',
         ]);
-        $projecttahapan = projecttahapan::create($request->all());
+        $permintaantahapan = permintaantahapan::create($request->all());
 
         return response()->json([
-            'data' => projecttahapan::all(),
+            'data' => permintaantahapan::all(),
             'message' => 'Project tahapan created successfully',
         ], 201);
     }
@@ -32,17 +32,17 @@ class tahapancontroller extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string|max:255',
         ]);
-        $projecttahapan = projecttahapan::findOrFail($id);
-        $projecttahapan->update($request->all());
+        $permintaantahapan = permintaantahapan::findOrFail($id);
+        $permintaantahapan->update($request->all());
 
-        return response()->json(['data' => projecttahapan::all()]);
+        return response()->json(['data' => permintaantahapan::all()]);
     }
 
     public function destroy($id)
     {
-        $projecttahapan = projecttahapan::findOrFail($id);
-        $projecttahapan->delete();
+        $permintaantahapan = permintaantahapan::findOrFail($id);
+        $permintaantahapan->delete();
 
-        return response()->json(['data' => projecttahapan::all()]);
+        return response()->json(['data' => permintaantahapan::all()]);
     }
 }

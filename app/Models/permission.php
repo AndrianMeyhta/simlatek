@@ -8,7 +8,7 @@ class permission extends Model
 {
     protected $fillable = [
         'role_id',
-        'projecttahapan_id'
+        'permintaantahapan_id'
     ];
 
     public function role()
@@ -18,6 +18,6 @@ class permission extends Model
 
     public function tahapan()
     {
-        return $this->belongsTo(Projecttahapan::class, 'projecttahapan_id');
+        return $this->belongsTo(permintaantahapan::class, 'permintaantahapan_id');
     }
 }

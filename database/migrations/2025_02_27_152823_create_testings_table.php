@@ -14,8 +14,9 @@ return new class extends Migration
         Schema::create('testings', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->foreignId('progressreport_id')->constrained()->onDelete('cascade');
             $table->enum('testingtype', ['Fungsi', 'Keamanan', 'Performa']);
-            $table->string('description');
+            $table->enum('status',['Process','Passed']);
             $table->timestamps();
         });
     }

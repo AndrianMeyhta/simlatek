@@ -1,10 +1,10 @@
 import React, { useState, DragEvent } from "react";
 import axios from "axios";
-import { Head } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react"; // Import router for programmatic navigation
 import Layout from "../../Layouts/layout";
 import { usePage } from "@inertiajs/react";
 import { Upload } from "lucide-react";
-import { confirmAlert, successAlert, errorAlert, toastNotification } from "../../Components/sweetAlert";
+import { confirmAlert, errorAlert } from "../../Components/sweetAlert";
 
 interface FormData {
     title: string;
@@ -24,6 +24,7 @@ interface PageProps {
 const CreatePermintaan = () => {
     const { props } = usePage<{ props: PageProps }>();
     const nomertiket = (props.nomertiket as string | undefined) ?? "";
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [formData, setFormData] = useState<FormData>({
         title: "",
@@ -38,7 +39,7 @@ const CreatePermintaan = () => {
     const [dragOver, setDragOver] = useState<Record<string, boolean>>({});
 
     const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -46,7 +47,7 @@ const CreatePermintaan = () => {
 
     const handleFileChange = (
         category: keyof FormData["files"],
-        file: File | null
+        file: File | null,
     ) => {
         setFormData((prev) => ({
             ...prev,
@@ -56,7 +57,7 @@ const CreatePermintaan = () => {
 
     const handleDrop = (
         e: DragEvent<HTMLDivElement>,
-        category: keyof FormData["files"]
+        category: keyof FormData["files"],
     ) => {
         e.preventDefault();
         setDragOver((prev) => ({ ...prev, [category]: false }));
@@ -66,7 +67,7 @@ const CreatePermintaan = () => {
 
     const handleDragOver = (
         e: DragEvent<HTMLDivElement>,
-        category: keyof FormData["files"]
+        category: keyof FormData["files"],
     ) => {
         e.preventDefault();
         setDragOver((prev) => ({ ...prev, [category]: true }));
@@ -74,22 +75,19 @@ const CreatePermintaan = () => {
 
     const handleDragLeave = (
         e: DragEvent<HTMLDivElement>,
-        category: keyof FormData["files"]
+        category: keyof FormData["files"],
     ) => {
         setDragOver((prev) => ({ ...prev, [category]: false }));
     };
 
     const validateForm = () => {
-        // Check if all required fields are filled
         if (!formData.title || !formData.anggaran) {
             errorAlert(
                 "Data tidak lengkap",
-                "Harap isi judul dan anggaran permohonan"
+                "Harap isi judul dan anggaran permohonan",
             );
             return false;
         }
-
-        // Check if all files are uploaded
         if (
             !formData.files.suratPermohonan ||
             !formData.files.dataUsulan ||
@@ -97,16 +95,17 @@ const CreatePermintaan = () => {
         ) {
             errorAlert(
                 "File tidak lengkap",
-                "Harap upload semua dokumen yang diperlukan"
+                "Harap upload semua dokumen yang diperlukan",
             );
             return false;
         }
-
         return true;
     };
 
     const submitForm = async () => {
         if (!validateForm()) return false;
+
+        setIsSubmitting(true);
 
         const data = new FormData();
         data.append("title", formData.title);
@@ -117,34 +116,28 @@ const CreatePermintaan = () => {
         data.append("petaPerencanaan", formData.files.petaPerencanaan as File);
 
         try {
-            await axios.post("/permintaan", data);
-
-            successAlert(
-                "Permohonan Berhasil",
-                "Permohonan telah berhasil diajukan"
-            );
-            toastNotification("success", "Permohonan berhasil diajukan");
-
-            // Reset form
-            setFormData({
-                title: "",
-                description: "",
-                anggaran: "",
-                files: {
-                    suratPermohonan: null,
-                    dataUsulan: null,
-                    petaPerencanaan: null,
+            const response = await axios.post("/permintaan", data, {
+                headers: {
+                    "Content-Type": "multipart/form-data",
                 },
             });
-            // window.location.href = "/permintaan";
+
+            // Get the permintaan ID from the response
+            const permintaanId = response.data.permintaan_id;
+
+            // Programmatically navigate to the new permintaan page
+            router.visit(`/permintaan/${permintaanId}`);
+
             return true;
         } catch (error) {
             console.error(error);
             errorAlert(
                 "Gagal Mengajukan",
-                "Terjadi kesalahan saat mengajukan permohonan"
+                "Terjadi kesalahan saat mengajukan permohonan",
             );
             return false;
+        } finally {
+            setIsSubmitting(false); // Reset loading state
         }
     };
 
@@ -158,7 +151,7 @@ const CreatePermintaan = () => {
             "Ya, Ajukan",
             "Batalkan",
             "Permohonan berhasil diajukan.",
-            "Gagal mengajukan permohonan."
+            "Gagal mengajukan permohonan.",
         );
     };
 
@@ -266,19 +259,19 @@ const CreatePermintaan = () => {
                                             onDrop={(e) =>
                                                 handleDrop(
                                                     e,
-                                                    doc.key as keyof FormData["files"]
+                                                    doc.key as keyof FormData["files"],
                                                 )
                                             }
                                             onDragOver={(e) =>
                                                 handleDragOver(
                                                     e,
-                                                    doc.key as keyof FormData["files"]
+                                                    doc.key as keyof FormData["files"],
                                                 )
                                             }
                                             onDragLeave={(e) =>
                                                 handleDragLeave(
                                                     e,
-                                                    doc.key as keyof FormData["files"]
+                                                    doc.key as keyof FormData["files"],
                                                 )
                                             }
                                         >
@@ -288,7 +281,7 @@ const CreatePermintaan = () => {
                                                     handleFileChange(
                                                         doc.key as keyof FormData["files"],
                                                         e.target.files?.[0] ||
-                                                            null
+                                                            null,
                                                     )
                                                 }
                                                 className="hidden"
@@ -331,9 +324,12 @@ const CreatePermintaan = () => {
                                 {/* Submit Button */}
                                 <button
                                     type="submit"
+                                    disabled={isSubmitting}
                                     className="w-full py-2.5 px-4 rounded-lg bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-500 dark:hover:bg-cyan-600 text-white font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 dark:focus:ring-offset-gray-800"
                                 >
-                                    Submit Permohonan
+                                    {isSubmitting
+                                        ? "Submitting..."
+                                        : "Submit Permohonan"}
                                 </button>
                             </form>
                         </div>

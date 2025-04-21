@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Dokumenkategori;
+use Inertia\Inertia;
 
 class kategoricontroller extends Controller
 {
     public function index()
     {
-        return response()->json(['data' => Dokumenkategori::all()]);
+        return response()->json(['data' => DokumenKategori::all()]);
     }
 
     public function store(Request $request)

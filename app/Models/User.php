@@ -36,9 +36,29 @@ class User extends Authenticatable
         return $this->hasMany(Permintaan::class);
     }
 
-    public function projectsManaged()
+    public function projects()
     {
         return $this->hasMany(Project::class, 'dikelola');
+    }
+
+    public function managings()
+    {
+        return $this->hasMany(Managing::class);
+    }
+
+    public function skills()
+    {
+        return $this->belongsToMany(Skill::class, 'userskills')
+                    ->withPivot('level', 'experience_since', 'notes')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get the user skills for the user.
+     */
+    public function userSkills()
+    {
+        return $this->hasMany(UserSkill::class);
     }
 
 }

@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@inertiajs/react";
 import Layout from "../../Layouts/layout";
 import { Head } from "@inertiajs/react";
-import { PermintaanIndexProps  } from "../../types";
+import { PermintaanIndexProps } from "../../types";
 
 const PermintaanIndex: React.FC<PermintaanIndexProps> = ({ permintaans }) => {
     return (
@@ -69,7 +69,7 @@ const PermintaanIndex: React.FC<PermintaanIndexProps> = ({ permintaans }) => {
                                                     ></div>
                                                 </div>
                                                 <span className="text-xs text-gray-600">
-                                                    {permintaan.progress}%
+                                                    {`${permintaan.progress}%`}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

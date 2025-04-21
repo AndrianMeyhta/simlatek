@@ -5,13 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class projectprogress extends Model
+class permintaanprogress extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'project_id',
-        'projecttahapan_id',
+        'permintaan_id',
+        'permintaantahapan_id',
         'percentage',
         'status',
         'description'
@@ -21,14 +21,14 @@ class projectprogress extends Model
         'status' => 'string',
     ];
 
-    public function project()
+    public function permintaan()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(permintaan::class);
     }
 
     public function tahapan()
     {
-        return $this->belongsTo(ProjectTahapan::class, 'projecttahapan_id');
+        return $this->belongsTo(permintaanTahapan::class, 'permintaantahapan_id');
     }
     public function progressReports()
     {
@@ -37,6 +37,6 @@ class projectprogress extends Model
 
     public function tahapanconstrains()
     {
-        return $this->hasMany(Tahapanconstrain::class, 'projecttahapan_id', 'projecttahapan_id');
+        return $this->hasMany(Tahapanconstrain::class, 'permintaantahapan_id', 'permintaantahapan_id');
     }
 }

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('rekomendasis', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->foreignId('permintaan_id')->constrained()->onDelete('cascade');
             $table->enum('status', ['Approved', 'Rejected'])->default('Approved');
             $table->timestamps();
         });

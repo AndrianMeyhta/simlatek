@@ -6,15 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class rapat extends Model
 {
-    protected $fillable = ['project_id', 'jadwalrapat'];
+    protected $fillable = ['permintaan_id', 'jadwalrapat'];
 
     protected $casts = [
         'jadwalrapat' => 'datetime',
     ];
 
-    public function project()
+    public function permintaan()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(permintaan::class);
     }
 
     public function dokumenRelasis()

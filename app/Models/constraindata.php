@@ -11,16 +11,16 @@ class constraindata extends Model
 
     protected $table = 'constraindatas';
 
-    protected $fillable = ['project_id', 'tahapanconstrain_id', 'status'];
+    protected $fillable = ['permintaan_id', 'tahapanconstrain_id', 'status'];
 
     protected $casts = [
         'status' => 'string',
     ];
 
-    // Relasi ke Project
-    public function project()
+    // Relasi ke permintaan
+    public function permintaan()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(permintaan::class);
     }
 
     // Relasi ke TahapanConstrain

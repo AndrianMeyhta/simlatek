@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('rapats', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->foreignId('permintaan_id')->constrained()->onDelete('cascade');
             $table->dateTime('jadwalrapat');
             $table->timestamps();
         });

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('tahapanconstrains', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('projecttahapan_id')->constrained('projecttahapans')->onDelete('cascade');
+            $table->foreignId('permintaantahapan_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->string('type');
             $table->json('detail');

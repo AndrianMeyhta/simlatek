@@ -17,6 +17,15 @@ class DokumenkategoriSeeder extends Seeder
             ['name' => 'Surat Permohonan'],
             ['name' => 'Data Usulan'],
             ['name' => 'Peta Perencanaan SPBE'],
+            ['name' => 'File Undangan'],
+            ['name' => 'Daftar Hadir'],
+            ['name' => 'Notulensi'],
+            ['name' => 'Dokumentasi'],
+            ['name' => 'Rekomendasi'],
+            ['name' => 'SKPL'],
+            ['name' => 'RanBa'],
+            ['name' => 'Development'],
+            ['name' => 'Testings'],
         ]);
     }
 }

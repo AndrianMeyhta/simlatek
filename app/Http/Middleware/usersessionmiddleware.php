@@ -10,8 +10,13 @@ use Illuminate\Support\Facades\Auth;
 class UserSessionMiddleware
 {
     private array $rolePermissions = [
-        'Superadmin' => ['manage', 'permintaan', 'dashboard', 'project', 'constrain'],
-        'OPD' => ['permintaan', 'dashboard', 'project'],
+        'superadmin' => [
+            'manage', 'permintaan', 'dashboard', 'project', 'constrain',
+            'user-management', 'users', 'skills', 'user-skills', 'aplikasi'
+        ],
+        'nonSuperadmin' => [
+            'permintaan', 'dashboard', 'project', 'active-permintaans'
+        ],
     ];
 
     public function handle(Request $request, Closure $next)
@@ -23,20 +28,25 @@ class UserSessionMiddleware
         }
 
         $user = Auth::user();
-        $role = $user->role->name ?? 'User';
+        $role = strtolower($user->role->name ?? 'user'); // lowercase biar aman
 
         $currentRoute = $request->route()->uri();
 
-        if (isset($this->rolePermissions[$role])) {
-            foreach ($this->rolePermissions[$role] as $allowedPrefix) {
-                if (str_starts_with($currentRoute, $allowedPrefix)) {
-                    return $next($request);
-                }
+        // Superadmin punya akses penuh
+        if ($role === 'superadmin') {
+            $permissions = $this->rolePermissions['superadmin'];
+        } else {
+            // Semua selain superadmin dianggap nonSuperadmin
+            $permissions = $this->rolePermissions['nonSuperadmin'];
+        }
+
+        // Cek apakah URI diawali dengan prefix yang diizinkan
+        foreach ($permissions as $allowedPrefix) {
+            if (str_starts_with($currentRoute, $allowedPrefix)) {
+                return $next($request);
             }
         }
 
-        return response()->json([
-            'message' => 'Forbidden: Anda tidak memiliki izin untuk mengakses halaman ini.',
-        ], Response::HTTP_FORBIDDEN);
+        return redirect()->route('dashboard')->with('error', 'Anda tidak memiliki akses ke halaman tersebut.');
     }
 }

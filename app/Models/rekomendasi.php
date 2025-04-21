@@ -6,15 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class rekomendasi extends Model
 {
-    protected $fillable = ['project_id', 'status'];
-
+    protected $fillable = ['permintaan_id', 'status'];
     protected $casts = [
         'status' => 'string',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
-    public function project()
+    public function permintaan()
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Permintaan::class, 'permintaan_id');
     }
 
     public function dokumenRelasis()

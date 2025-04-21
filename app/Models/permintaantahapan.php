@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class projecttahapan extends Model
+class permintaantahapan extends Model
 {
     use HasFactory;
 
@@ -15,7 +15,7 @@ class projecttahapan extends Model
     ];
     public function permission()
     {
-        return $this->hasMany(Permission::class, 'projecttahapan_id');
+        return $this->hasMany(Permission::class, 'permintaantahapan_id');
     }
 
     public function projectProgresses()

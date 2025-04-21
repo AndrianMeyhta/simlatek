@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TahapanConstrain;
-use App\Models\ProjectTahapan;
+use App\Models\PermintaanTahapan;
 use App\Models\DokumenKategori;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
@@ -12,9 +12,9 @@ class ConstrainController extends Controller
 {
     public function index()
     {
-        $tahapans = ProjectTahapan::orderBy('id', 'asc')->get(['id', 'name']);
-        $constraints = TahapanConstrain::with('projectTahapan')->get();
-        $dokumenKategoris = DokumenKategori::all(['id', 'name']); // Data untuk dropdown
+        $tahapans = PermintaanTahapan::orderBy('id', 'asc')->get(['id', 'name']);
+        $constraints = TahapanConstrain::with('permintaantahapan')->get();
+        $dokumenKategoris = DokumenKategori::all(['id', 'name']);
 
         return Inertia::render('constrain', [
             'tahapans' => $tahapans,
@@ -25,43 +25,64 @@ class ConstrainController extends Controller
 
     public function store(Request $request)
     {
+        // Validasi request sesuai struktur payload dari frontend
         $request->validate([
-            'projecttahapan_id' => 'required|exists:projecttahapans,id',
-            'type' => 'required|in:schedule,upload_file,text',
+            'permintaantahapan_id' => 'required|exists:permintaantahapans,id',
+            'type' => 'required|in:schedule,upload_file,text,progress',
             'name' => 'required|string|max:255',
-            'required' => 'required|boolean',
-            'target_table' => 'required|string',
-            'target_column' => 'required|string',
-            'dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id',
-            'relasi' => 'nullable|in:rapat,testing,rekomendasi,project',
-            'isTesting' => 'nullable|boolean', // Tambahkan ini
-            'testingtype' => 'nullable|in:Fungsi,Keamanan,Performa', // Tambahkan ini
+            'detail.required' => 'required|boolean',
+            'detail.target_table' => 'required|string',
+            'detail.target_column' => 'required_if:type,schedule,text|string|nullable',
+            'detail.target_columns' => 'required_if:type,progress|array|nullable',
+            'detail.dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id',
+            'detail.relasi' => 'nullable|string', // Ubah ke string karena frontend mengirimkan namespace
+            'detail.isTesting' => 'nullable|boolean',
+            'detail.testingtype' => 'nullable|in:Fungsi,Keamanan,Performa',
+            'detail.is_domain' => 'nullable|boolean', // Tambahkan validasi untuk is_domain
+            'detail.domain_type' => 'required_if:detail.is_domain,true|in:sementara,live|nullable', // Tambahkan validasi untuk domain_type
         ]);
 
         $detail = [
             'name' => $request->name,
-            'required' => $request->required,
-            'target_table' => $request->target_table,
-            'target_column' => $request->target_column,
-            'dokumenkategori_id' => null,
-            'relasi' => null,
-            'isTesting' => $request->isTesting ?? false, // Tambahkan ini
+            'required' => $request->input('detail.required'),
+            'target_table' => $request->input('detail.target_table'),
         ];
 
+        if ($request->type === 'progress') {
+            $detail['target_columns'] = $request->input('detail.target_columns', ['description', 'percentage_change']);
+        } else {
+            $detail['target_column'] = $request->input('detail.target_column');
+        }
+
+        if ($request->type === 'text' && $request->input('detail.is_domain')) {
+            $detail['is_domain'] = $request->input('detail.is_domain');
+            $detail['domain_type'] = $request->input('detail.domain_type');
+        }
+
         if ($request->type === 'upload_file') {
-            $detail['dokumenkategori_id'] = $request->dokumenkategori_id;
-            if ($request->relasi) {
-                $detail['relasi'] = "App\\Models\\" . ucfirst($request->relasi);
+            $detail['dokumenkategori_id'] = $request->input('detail.dokumenkategori_id');
+            $detail['isTesting'] = $request->input('detail.isTesting', false);
+
+            $relasi = $request->input('detail.relasi');
+            if ($relasi) {
+                $detail['relasi'] = 'App\\Models\\' . ucfirst($relasi);
+            } else {
+                $detail['relasi'] = null;
             }
-            if ($request->isTesting && $request->testingtype) {
-                $detail['testingtype'] = $request->testingtype; // Hanya simpan jika isTesting true
+
+            if ($request->input('detail.isTesting') && $request->input('detail.testingtype')) {
+                $detail['testingtype'] = $request->input('detail.testingtype');
             }
         } else {
-            unset($detail['testingtype']); // Pastikan testingtype tidak ada jika bukan upload_file
+            $detail['dokumenkategori_id'] = null;
+            $detail['relasi'] = null;
+            if ($request->type !== 'text') {
+                unset($detail['is_domain'], $detail['domain_type']);
+            }
         }
 
         $constraint = TahapanConstrain::create([
-            'projecttahapan_id' => $request->projecttahapan_id,
+            'permintaantahapan_id' => $request->permintaantahapan_id,
             'name' => $request->name,
             'type' => $request->type,
             'detail' => $detail,
@@ -69,53 +90,70 @@ class ConstrainController extends Controller
 
         return response()->json([
             'message' => 'Constraint berhasil ditambahkan',
-            'constraint' => $constraint->load('projectTahapan'),
+            'constraint' => $constraint->load('permintaantahapan'),
         ], 201);
     }
 
     public function update(Request $request, TahapanConstrain $constraint)
     {
+        // Validasi request sesuai struktur payload dari frontend
         $request->validate([
-            'projecttahapan_id' => 'required|exists:projecttahapans,id',
-            'type' => 'required|in:schedule,upload_file,text',
+            'permintaantahapan_id' => 'required|exists:permintaantahapans,id',
+            'type' => 'required|in:schedule,upload_file,text,progress',
             'name' => 'required|string|max:255',
-            'required' => 'required|boolean',
-            'target_table' => 'required|string',
-            'target_column' => 'required|string',
-            'dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id',
-            'relasi' => 'nullable|in:rapat,testing,rekomendasi,project',
-            'isTesting' => 'nullable|boolean', // Tambahkan ini
-            'testingtype' => 'nullable|in:Fungsi,Keamanan,Performa', // Tambahkan ini
+            'detail.required' => 'required|boolean',
+            'detail.target_table' => 'required|string',
+            'detail.target_column' => 'required_if:type,schedule,text|string|nullable',
+            'detail.target_columns' => 'required_if:type,progress|array|nullable',
+            'detail.dokumenkategori_id' => 'nullable|exists:dokumenkategoris,id',
+            'detail.relasi' => 'nullable|string',
+            'detail.isTesting' => 'nullable|boolean',
+            'detail.testingtype' => 'nullable|in:Fungsi,Keamanan,Performa',
+            'detail.is_domain' => 'nullable|boolean',
+            'detail.domain_type' => 'required_if:detail.is_domain,true|in:sementara,live|nullable',
         ]);
 
         $detail = [
             'name' => $request->name,
-            'required' => $request->required,
-            'target_table' => $request->target_table,
-            'target_column' => $request->target_column,
-            'dokumenkategori_id' => $constraint->detail['dokumenkategori_id'] ?? null,
-            'relasi' => $constraint->detail['relasi'] ?? null,
-            'isTesting' => $request->isTesting ?? false, // Tambahkan ini
+            'required' => $request->input('detail.required'),
+            'target_table' => $request->input('detail.target_table'),
         ];
 
+        if ($request->type === 'progress') {
+            $detail['target_columns'] = $request->input('detail.target_columns', ['description', 'percentage_change']);
+        } else {
+            $detail['target_column'] = $request->input('detail.target_column');
+        }
+
+        if ($request->type === 'text' && $request->input('detail.is_domain')) {
+            $detail['is_domain'] = $request->input('detail.is_domain');
+            $detail['domain_type'] = $request->input('detail.domain_type');
+        }
+
         if ($request->type === 'upload_file') {
-            $detail['dokumenkategori_id'] = $request->dokumenkategori_id;
-            if ($request->relasi) {
-                $detail['relasi'] = "App\\Models\\" . ucfirst($request->relasi);
-            }
-            if ($request->isTesting && $request->testingtype) {
-                $detail['testingtype'] = $request->testingtype; // Hanya simpan jika isTesting true
+            $detail['dokumenkategori_id'] = $request->input('detail.dokumenkategori_id');
+            $detail['isTesting'] = $request->input('detail.isTesting', false);
+            $relasi = $request->input('detail.relasi');
+            if ($relasi) {
+                $detail['relasi'] = 'App\\Models\\' . ucfirst($relasi);
             } else {
-                unset($detail['testingtype']); // Hapus jika tidak testing
+                $detail['relasi'] = null;
+            }
+            if ($request->input('detail.isTesting') && $request->input('detail.testingtype')) {
+                $detail['testingtype'] = $request->input('detail.testingtype');
+            } else {
+                unset($detail['testingtype']);
             }
         } else {
             $detail['dokumenkategori_id'] = null;
             $detail['relasi'] = null;
-            unset($detail['testingtype']); // Pastikan testingtype tidak ada jika bukan upload_file
+            if ($request->type !== 'text') {
+                unset($detail['is_domain'], $detail['domain_type']);
+            }
         }
 
         $constraint->update([
-            'projecttahapan_id' => $request->projecttahapan_id,
+            'permintaantahapan_id' => $request->permintaantahapan_id,
             'name' => $request->name,
             'type' => $request->type,
             'detail' => $detail,
@@ -123,8 +161,8 @@ class ConstrainController extends Controller
 
         return response()->json([
             'message' => 'Constraint berhasil diperbarui',
-            'constraint' => $constraint->fresh('projectTahapan'),
-        ], 201);
+            'constraint' => $constraint->fresh('permintaantahapan'),
+        ], 200); // Ubah ke 200 untuk update
     }
 
     public function destroy(TahapanConstrain $constraint)

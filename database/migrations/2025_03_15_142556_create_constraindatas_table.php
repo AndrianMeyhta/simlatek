@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('constraindatas', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->foreignId('permintaan_id')->constrained()->onDelete('cascade');
             $table->foreignId('tahapanconstrain_id')->constrained()->onDelete('cascade');
             $table->enum('status', ['pending', 'fulfilled'])->default('pending');
             $table->timestamps();

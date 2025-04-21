@@ -27,11 +27,6 @@ class project extends Model
         return $this->belongsTo(User::class, 'dikelola');
     }
 
-    public function progress()
-    {
-        return $this->hasMany(ProjectProgress::class);
-    }
-
     public function rapats()
     {
         return $this->hasOne(Rapat::class);

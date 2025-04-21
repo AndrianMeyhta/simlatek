@@ -12,7 +12,7 @@ class tahapanconstrain extends Model
     protected $table = 'tahapanconstrains';
 
     protected $fillable = [
-        'projecttahapan_id',
+        'permintaantahapan_id',
         'name',
         'type',
         'detail',
@@ -23,10 +23,10 @@ class tahapanconstrain extends Model
         'detail' => 'array',
     ];
 
-    // Relasi ke Projecttahapan
-    public function projectTahapan()
+    // Relasi ke Permintaantahapan
+    public function permintaantahapan()
     {
-        return $this->belongsTo(ProjectTahapan::class, 'projecttahapan_id');
+        return $this->belongsTo(PermintaanTahapan::class, 'permintaantahapan_id');
     }
 
     public function constraindata()
@@ -36,12 +36,16 @@ class tahapanconstrain extends Model
 
     public function projectprogress()
     {
-        return $this->hasOne(Projectprogress::class, 'projecttahapan_id', 'projecttahapan_id');
+        return $this->hasOne(Projectprogress::class, 'permintaantahapan_id', 'permintaantahapan_id');
     }
 
     // Accessor untuk parsing detail sebagai array
     public function getDetailAttribute($value)
     {
         return json_decode($value, true) ?: [];
+    }
+
+    public function progressreports() {
+        return $this->hasMany(ProgressReport::class, 'tahapanconstrain_id');
     }
 }

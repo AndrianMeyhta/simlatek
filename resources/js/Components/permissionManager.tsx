@@ -55,7 +55,7 @@ const PermissionManager: React.FC = () => {
                 if (!initialState[perm.role_id]) {
                     initialState[perm.role_id] = [];
                 }
-                initialState[perm.role_id].push(perm.projecttahapan_id);
+                initialState[perm.role_id].push(perm.permintaantahapan_id);
             });
             setPermissionState(initialState);
         }
@@ -109,7 +109,7 @@ const PermissionManager: React.FC = () => {
                                             (tahapanId: number) => {
                                                 newPermissions.push({
                                                     role_id: parseInt(roleId),
-                                                    projecttahapan_id:
+                                                    permintaantahapan_id:
                                                         tahapanId,
                                                 });
                                             }

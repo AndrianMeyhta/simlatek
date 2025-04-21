@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('progressreports', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('projectprogress_id')->constrained()->onDelete('cascade');
+            $table->foreignId('permintaanprogress_id')->constrained()->onDelete('cascade');
             $table->text('description');
             $table->integer('percentage_change'); // Perubahan progress dari update ini
             $table->timestamps();

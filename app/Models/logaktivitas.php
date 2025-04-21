@@ -7,12 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 class logaktivitas extends Model
 {
     protected $table = 'logaktivitas';
-    protected $fillable = ['projectprogress_id', 'user_id', 'action', 'description'];
+    protected $fillable = ['permintaanprogress_id', 'user_id', 'action', 'description'];
 
-    // Relasi ke Projectprogress
-    public function projectprogress()
+    // Relasi ke permintaanprogress
+    public function permintaanprogress()
     {
-        return $this->belongsTo(Projectprogress::class, 'projectprogress_id');
+        return $this->belongsTo(permintaanprogress::class, 'permintaanprogress_id');
     }
 
     // Relasi ke User

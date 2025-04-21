@@ -1,6 +1,5 @@
 <?php
-// app/Http/Controllers/RoleController.php
-// app/Http/Controllers/RoleController.php
+
 namespace App\Http\Controllers;
 
 use App\Models\Role;
@@ -17,27 +16,21 @@ class RoleController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255']);
         $role = Role::create($request->all());
-
-        return response()->json([
-            'data' => Role::all(),
-            'message' => 'Role created successfully',
-        ], 201);
+        return response()->json(['data' => $role], 201);
     }
 
     public function update(Request $request, $id)
     {
-        $request->validate(['name' => 'required|string|max:255']);
         $role = Role::findOrFail($id);
+        $request->validate(['name' => 'required|string|max:255']);
         $role->update($request->all());
-
-        return response()->json(['data' => Role::all()]);
+        return response()->json(['data' => $role]);
     }
 
     public function destroy($id)
     {
         $role = Role::findOrFail($id);
         $role->delete();
-
-        return response()->json(['data' => Role::all()]);
+        return response()->json(['message' => 'Role deleted successfully']);
     }
 }

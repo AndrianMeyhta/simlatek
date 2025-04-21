@@ -14,9 +14,14 @@ class permintaan extends Model
         'status' => 'string',
     ];
 
-    public function projects()
+    public function project()
     {
         return $this->hasOne(Project::class);
+    }
+
+    public function progress()
+    {
+        return $this->hasMany(PermintaanProgress::class);
     }
 
     public function dokumenRelasis()
@@ -33,5 +38,15 @@ class permintaan extends Model
     public function users()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function managings()
+    {
+        return $this->hasMany(Managing::class);
+    }
+
+    public function rbieExtractions()
+    {
+        return $this->hasMany(RbieExtraction::class);
     }
 }

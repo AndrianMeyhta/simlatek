@@ -19,8 +19,19 @@ import {
     ChevronLeft,
     ChevronRight,
     Settings,
+    Bell,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import echo from "../echo";
+
+interface Notification {
+    id: number;
+    type: string;
+    message: string;
+    is_read: boolean;
+    data: any;
+    created_at: string;
+}
 
 interface MenuItem {
     id: string;
@@ -50,6 +61,13 @@ const fetchActivePermintaans = async () => {
     return response.data;
 };
 
+const fetchNotifications = async () => {
+    const response = await axios.get("/notifications", {
+        withCredentials: true,
+    });
+    return response.data;
+};
+
 const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
     const [collapsed, setCollapsed] = useState<boolean>(false);
     const [activeItem, setActiveItem] = useState<string>(
@@ -70,14 +88,24 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
         email: "",
         password: "",
     });
+    const [isNotificationOpen, setIsNotificationOpen] =
+        useState<boolean>(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
 
     const { auth } = usePage<{
-        auth: { user: string; role: string; role_id?: number; email?: string };
+        auth: {
+            user: string;
+            role: string;
+            id: number;
+            role_id?: number;
+            email?: string;
+        };
     }>().props;
     const [user, setUser] = useState<User>({
         name: auth.user || "Guest",
         role: auth.role || "User",
-        id: auth.role_id || 0,
+        role_id: auth.role_id || 0,
+        id: auth.id || 0,
         email: auth.email || "",
     });
 
@@ -89,6 +117,98 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
         enabled: !isSuperadmin,
         staleTime: 5 * 60 * 1000,
     });
+
+    // Fetch initial notifications
+    useEffect(() => {
+        fetchNotifications().then((data) => {
+            setNotifications(data);
+        });
+    }, []);
+
+    useEffect(() => {
+        console.log("Initializing Echo for user ID:", user.id);
+        if (!user.id) {
+            console.error("User ID is not defined");
+            return;
+        }
+
+        const channel = echo.private(`user.${user.id}`);
+        console.log("Subscribed to channel: user." + user.id);
+
+        // Dengarkan event notification.created
+        channel
+            .listen(".notification.created", (e: any) => {
+                console.log("Raw event data (notification.created):", e);
+                if (e.notification) {
+                    setNotifications((prev) => {
+                        if (prev.some((n) => n.id === e.notification.id)) {
+                            return prev;
+                        }
+                        return [e.notification, ...prev];
+                    });
+                } else {
+                    console.error("Invalid notification format:", e);
+                }
+            })
+            .error((error: any) => {
+                console.error("Echo channel error:", error);
+            });
+
+        // Debug event dengan namespace lengkap
+        channel.listen(".App\\Events\\NotificationCreated", (e: any) => {
+            console.log(
+                "Raw event data (App\\Events\\NotificationCreated):",
+                e,
+            );
+            if (e.notification) {
+                setNotifications((prev) => {
+                    if (prev.some((n) => n.id === e.notification.id)) {
+                        return prev;
+                    }
+                    return [e.notification, ...prev];
+                });
+            } else {
+                console.error("Invalid notification format:", e);
+            }
+        });
+
+        return () => {
+            console.log("Leaving channel: user.", user.id);
+            echo.leave(`user.${user.id}`);
+        };
+    }, [user.id]);
+
+    // Fetch initial notifications
+    useEffect(() => {
+        fetchNotifications().then((data) => {
+            console.log("Fetched initial notifications:", data);
+            setNotifications((prev) => {
+                const existingIds = new Set(prev.map((n) => n.id));
+                const newNotifications = data.filter(
+                    (n: Notification) => !existingIds.has(n.id),
+                );
+                return [...newNotifications, ...prev];
+            });
+        });
+    }, []);
+
+    // Handle marking notification as read
+    const markAsRead = async (id: number) => {
+        try {
+            await axios.post(
+                `/notifications/${id}/read`,
+                {},
+                {
+                    withCredentials: true,
+                },
+            );
+            setNotifications((prev) =>
+                prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+            );
+        } catch (error) {
+            console.error("Failed to mark notification as read:", error);
+        }
+    };
 
     useEffect(() => {
         document.documentElement.classList.toggle("dark", darkMode);
@@ -102,8 +222,6 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
             password: "",
         });
     }, [user]);
-
-    console.log("auth:", auth);
 
     const toggleSidebar = (): void => setCollapsed((prev) => !prev);
     const toggleTheme = (): void => setDarkMode((prev) => !prev);
@@ -336,6 +454,8 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
 
     const toggleTrackStyle = darkMode ? "bg-indigo-600" : "bg-gray-200";
 
+    const unreadCount = notifications.filter((n) => !n.is_read).length;
+
     return (
         <div className="flex h-screen overflow-hidden">
             <aside
@@ -417,13 +537,88 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
                         <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-gray-900"></div>
                     </div>
                     {!collapsed && (
-                        <div className="ml-3">
-                            <p className={`${theme.text} font-semibold`}>
-                                {user.name}
-                            </p>
-                            <p className={`${theme.activeText} text-sm`}>
-                                {user.role}
-                            </p>
+                        <div className="ml-3 flex items-center">
+                            <div>
+                                <p className={`${theme.text} font-semibold`}>
+                                    {user.name}
+                                </p>
+                                <p className={`${theme.activeText} text-sm`}>
+                                    {user.role}
+                                </p>
+                            </div>
+                            <div className="relative ml-4">
+                                <button
+                                    onClick={() =>
+                                        setIsNotificationOpen((prev) => !prev)
+                                    }
+                                    className={`p-2 rounded-full ${theme.hoverBg} ${theme.textSecondary} relative`}
+                                >
+                                    <Bell size={20} />
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-0 right-0 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+                                            {unreadCount}
+                                        </span>
+                                    )}
+                                </button>
+                                {isNotificationOpen && (
+                                    <div
+                                        className={`absolute left-0 mt-2 w-80 ${theme.cardBg} rounded-lg shadow-xl z-50 border ${theme.border} max-h-96 overflow-y-auto`}
+                                    >
+                                        <div className="p-4 border-b ${theme.border}">
+                                            <h3
+                                                className={`${theme.text} font-semibold`}
+                                            >
+                                                Notifikasi
+                                            </h3>
+                                        </div>
+                                        {notifications.length > 0 ? (
+                                            notifications.map(
+                                                (notification) => (
+                                                    <button
+                                                        key={notification.id}
+                                                        onClick={() =>
+                                                            !notification.is_read &&
+                                                            markAsRead(
+                                                                notification.id,
+                                                            )
+                                                        }
+                                                        className={`w-full text-left p-4 ${theme.hoverBg} transition-all ${
+                                                            notification.is_read
+                                                                ? theme.textSecondary
+                                                                : theme.text
+                                                        } border-b ${theme.border}`}
+                                                    >
+                                                        <p
+                                                            className={`text-sm font-medium ${
+                                                                notification.is_read
+                                                                    ? ""
+                                                                    : "font-bold"
+                                                            }`}
+                                                        >
+                                                            {
+                                                                notification.message
+                                                            }
+                                                        </p>
+                                                        <p
+                                                            className={`${theme.textSecondary} text-xs mt-1`}
+                                                        >
+                                                            {new Date(
+                                                                notification.created_at,
+                                                            ).toLocaleString()}
+                                                        </p>
+                                                    </button>
+                                                ),
+                                            )
+                                        ) : (
+                                            <div
+                                                className={`p-4 ${theme.textSecondary}`}
+                                            >
+                                                Tidak ada notifikasi
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>

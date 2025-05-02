@@ -1,3 +1,5 @@
+import Echo from "laravel-echo";
+import Pusher from "pusher-js";
 // resources/js/types.ts
 export interface Tahapan {
     id: number;
@@ -156,6 +158,7 @@ export interface User {
     name: string;
     role: string;
     id: number;
+    role_id: number;
     email?: string;
     skills?: Skill[];
     application_count?: number;
@@ -353,4 +356,11 @@ export interface RbieExtraction {
 export interface SkplData {
     id?: number;
     extracted_data: string[];
+}
+
+declare global {
+    interface Window {
+        Pusher: typeof Pusher;
+        Echo: typeof Echo;
+    }
 }

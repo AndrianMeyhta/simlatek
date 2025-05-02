@@ -16,9 +16,11 @@ use App\Http\Controllers\{
     SkillController,
     UserskillController,
     RbieRuleController,
-    RbieExtractionController
+    RbieExtractionController,
+    NotificationController,
 };
 use App\Models\{User, Skill, Role, permintaantahapan};
+use Illuminate\Support\Facades\Broadcast;
 
 // Auth Routes
 Route::controller(AuthController::class)->group(function () {
@@ -29,6 +31,11 @@ Route::controller(AuthController::class)->group(function () {
 
 // Routes with Auth Middleware
 Route::middleware(['auth', UserSessionMiddleware::class])->group(function () {
+
+    Broadcast::routes(['middleware' => ['auth', 'verified']]);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
 
     Route::get('/dashboard', [PermintaanController::class, 'dashboard'])->name('dashboard');
 

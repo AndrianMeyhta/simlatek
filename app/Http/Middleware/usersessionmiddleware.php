@@ -12,10 +12,10 @@ class UserSessionMiddleware
     private array $rolePermissions = [
         'superadmin' => [
             'manage', 'permintaan', 'dashboard', 'project', 'constrain',
-            'user-management', 'users', 'skills', 'user-skills', 'aplikasi'
+            'user-management', 'users', 'skills', 'user-skills', 'aplikasi','notifications','broadcasting',
         ],
         'nonSuperadmin' => [
-            'permintaan', 'dashboard', 'project', 'active-permintaans'
+            'permintaan', 'dashboard', 'project', 'active-permintaans','notifications','broadcasting',
         ],
     ];
 

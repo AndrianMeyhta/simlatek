@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import Layout from "../../Layouts/layout";
 import { Head } from "@inertiajs/react";
 import { SkplData, permintaanprogress, PageProps } from "../../types";
+import echo from "../../echo";
 
 interface ProgressReport {
     id: number;
@@ -61,6 +62,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
     );
     const [sortOrder, setSortOrder] = useState("asc");
 
+    // Effect untuk mengambil progress reports
     useEffect(() => {
         const fetchProgressReports = async () => {
             try {
@@ -84,6 +86,7 @@ const ShowPermintaan: React.FC<PageProps> = ({
         fetchProgressReports();
     }, [localPermintaanProgresses, permintaan.id]);
 
+    // Effect untuk mengambil SKPL data
     useEffect(() => {
         const fetchSkplData = async () => {
             if (!selectedConstrainId) {
@@ -95,11 +98,11 @@ const ShowPermintaan: React.FC<PageProps> = ({
                 console.log(
                     "Fetching SKPL data for constrain ID:",
                     selectedConstrainId,
-                ); // Debug log
+                );
                 const response = await axios.get<{ extracted_data: string[] }>(
                     `/permintaan/${permintaan.id}/skpl/${selectedConstrainId}`,
                 );
-                console.log("SKPL response:", response.data); // Debug log
+                console.log("SKPL response:", response.data);
                 setSkplData({
                     extracted_data: Array.isArray(response.data.extracted_data)
                         ? response.data.extracted_data
@@ -116,6 +119,127 @@ const ShowPermintaan: React.FC<PageProps> = ({
         }
     }, [permintaan.id, showSkplModal, selectedConstrainId]);
 
+    // Effect untuk mendengarkan event real-time
+    useEffect(() => {
+        // Berlangganan ke channel privat
+        echo.private(`permintaan.${permintaan.id}`).listen(
+            ".permintaan.updated",
+            (e: { permintaan_id: number; action: string; data: any }) => {
+                console.log("Received event:", e);
+                if (e.action === "update_constrain") {
+                    const {
+                        constrain_id,
+                        progress_id,
+                        percentage,
+                        status,
+                        target_data,
+                    } = e.data;
+                    setLocalPermintaanProgresses((prev) =>
+                        prev.map((p) =>
+                            p.id === progress_id
+                                ? {
+                                      ...p,
+                                      percentage,
+                                      tahapanconstrains:
+                                          p.tahapanconstrains.map((c) =>
+                                              c.id === constrain_id
+                                                  ? {
+                                                        ...c,
+                                                        constraindata: {
+                                                            ...(c.constraindata || {
+                                                                id: undefined,
+                                                                permintaan_id:
+                                                                    p.permintaan_id,
+                                                                tahapanconstrain_id:
+                                                                    c.id,
+                                                                status: "pending",
+                                                            }),
+                                                            status,
+                                                        },
+                                                        target_data,
+                                                    }
+                                                  : c,
+                                          ),
+                                  }
+                                : p,
+                        ),
+                    );
+
+                    if (target_data?.percentage) {
+                        // Perbarui progress reports
+                        axios
+                            .get(
+                                `/permintaan/${permintaan.id}/progress-reports/${constrain_id}`,
+                            )
+                            .then((response) => {
+                                setProgressReports((prev) => ({
+                                    ...prev,
+                                    [constrain_id]: response.data,
+                                }));
+                            })
+                            .catch((error) => {
+                                console.error(
+                                    "Failed to fetch progress reports:",
+                                    error,
+                                );
+                            });
+                    }
+                } else if (e.action === "confirm_step") {
+                    const {
+                        progress_id,
+                        next_progress_id,
+                        percentage,
+                        status,
+                    } = e.data;
+                    setLocalPermintaanProgresses((prev) =>
+                        prev.map((p) =>
+                            p.id === progress_id
+                                ? {
+                                      ...p,
+                                      status,
+                                      percentage,
+                                  }
+                                : next_progress_id && p.id === next_progress_id
+                                  ? {
+                                        ...p,
+                                        status: "current",
+                                        description: "Tahapan sedang berjalan",
+                                    }
+                                  : p,
+                        ),
+                    );
+                } else if (e.action === "rekomendasi") {
+                    const { id, status, created_at } = e.data;
+                    setRekomendasiStatus(status);
+                    setRekomendasiData({
+                        id: id || rekomendasi?.id || 0,
+                        status,
+                        created_at: created_at || new Date().toISOString(),
+                    });
+                    if (status === "Rejected") {
+                        setLocalPermintaanProgresses((prev) =>
+                            prev.map((p) => ({
+                                ...p,
+                                status: "completed",
+                                percentage: 100,
+                                description:
+                                    p.id === e.data.progress_id
+                                        ? "Tahapan ditutup karena permintaan ditolak"
+                                        : p.description,
+                            })),
+                        );
+                    }
+                }
+            },
+        );
+
+        // Bersihkan langganan saat komponen unmount
+        return () => {
+            echo.leave(`permintaan.${permintaan.id}`);
+        };
+    }, [permintaan.id]);
+
+    // Effect untuk filter users berdasarkan skill
     useEffect(() => {
         setFilteredUsers(
             skillSearch.trim() === ""

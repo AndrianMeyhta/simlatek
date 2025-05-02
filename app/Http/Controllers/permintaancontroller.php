@@ -25,6 +25,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Smalot\PdfParser\Parser;
 use Illuminate\Support\Facades\Log;
+use App\Events\PermintaanUpdated;
+use App\Events\NotificationCreated;
+use App\Models\Notifications;
 
 class PermintaanController extends Controller
 {
@@ -565,6 +568,16 @@ class PermintaanController extends Controller
                 'description' => "Update constrain: {$request->constrain_type}",
             ]);
 
+            // Kirim event real-time
+            $eventData = [
+                'constrain_id' => $constrain->id,
+                'progress_id' => $progress->id,
+                'percentage' => $progress->percentage,
+                'status' => $constraindata->status,
+                'target_data' => $target_data,
+            ];
+            event(new PermintaanUpdated($permintaan, 'update_constrain', $eventData));
+
             return response()->json([
                 'message' => 'Constrain berhasil diperbarui',
                 'target_data' => $target_data,
@@ -661,7 +674,7 @@ class PermintaanController extends Controller
             return DB::transaction(function () use ($request, $permintaanId) {
                 $progress = Permintaanprogress::where('id', $request->permintaanprogressId)
                     ->where('permintaan_id', $permintaanId)
-                    ->with('tahapanconstrains.constraindata')
+                    ->with(['tahapanconstrains.constraindata', 'tahapan', 'permintaan'])
                     ->firstOrFail();
 
                 $hasUploadFile = $progress->tahapanconstrains->some(fn($c) => $c->type === 'upload_file');
@@ -680,39 +693,119 @@ class PermintaanController extends Controller
                     throw new \Exception('Persentase progress harus mencapai 100%.');
                 }
 
-                $progress->update(['status' => 'completed', 'percentage' => 100, 'description' => 'Tahapan telah selesai']);
+                $progress->update([
+                    'status' => 'completed',
+                    'percentage' => 100,
+                    'description' => 'Tahapan telah selesai',
+                    'updated_at' => now(),
+                ]);
 
                 $nextProgress = Permintaanprogress::where('permintaan_id', $progress->permintaan_id)
                     ->where('id', '>', $progress->id)
                     ->orderBy('id', 'asc')
+                    ->with('tahapan')
                     ->first();
 
                 if ($nextProgress) {
-                    $nextProgress->update(['status' => 'current', 'description' => 'Tahapan sedang berjalan']);
+                    $nextProgress->update([
+                        'status' => 'current',
+                        'description' => 'Tahapan sedang berjalan',
+                        'updated_at' => now(),
+                    ]);
+
                     $tahapanConstrains = TahapanConstrain::where('permintaantahapan_id', $nextProgress->permintaantahapan_id)->get();
                     foreach ($tahapanConstrains as $constrain) {
                         Constraindata::firstOrCreate(
                             ['permintaan_id' => $nextProgress->permintaan_id, 'tahapanconstrain_id' => $constrain->id],
-                            ['status' => 'pending']
+                            ['status' => 'pending', 'created_at' => now()]
                         );
                     }
-                }
 
-                Logaktivitas::create([
-                    'permintaanprogress_id' => $progress->id,
-                    'user_id' => Auth::id(),
-                    'action' => 'Confirm Step',
-                    'description' => 'Tahapan ' . ($progress->tahapan?->name ?? 'Tidak Diketahui') . ' dikonfirmasi dan selesai',
-                ]);
+                    // Get roles with permissions for the next tahapan
+                    $roleIds = DB::table('permissions')
+                        ->where('permintaantahapan_id', $nextProgress->permintaantahapan_id)
+                        ->pluck('role_id')
+                        ->toArray();
 
-                if ($nextProgress) {
+                    // Get users who have these roles and are involved in the permintaan
+                    $usersToNotify = User::whereIn('role_id', $roleIds)
+                        ->whereIn('id', Managing::where('permintaan_id', $permintaanId)->pluck('user_id'))
+                        ->get();
+
+                    // Create notifications for each user
+                    foreach ($usersToNotify as $user) {
+                        $notification = Notifications::create([
+                            'user_id' => $user->id,
+                            'permintaan_id' => $permintaanId,
+                            'type' => 'task_assigned',
+                            'message' => "Tahapan '{$nextProgress->tahapan?->name}' telah dimulai untuk permintaan '{$progress->permintaan->title}'. Silakan penuhi persyaratan tahapan.",
+                            'data' => [
+                                'permintaan_id' => $permintaanId,
+                                'progress_id' => $nextProgress->id,
+                                'tahapan_id' => $nextProgress->permintaantahapan_id,
+                                'tahapan_name' => $nextProgress->tahapan?->name ?? 'Tidak Diketahui',
+                            ],
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+
+                        event(new NotificationCreated($notification));
+                    }
+
+                    // Log activity for starting the next tahapan
                     Logaktivitas::create([
                         'permintaanprogress_id' => $nextProgress->id,
                         'user_id' => Auth::id(),
                         'action' => 'Start Step',
                         'description' => 'Tahapan ' . ($nextProgress->tahapan?->name ?? 'Tidak Diketahui') . ' mulai berjalan',
+                        'created_at' => now(),
+                        'updated_at' => now(),
                     ]);
                 }
+
+                // Log activity for confirming current tahapan
+                Logaktivitas::create([
+                    'permintaanprogress_id' => $progress->id,
+                    'user_id' => Auth::id(),
+                    'action' => 'Confirm Step',
+                    'description' => 'Tahapan ' . ($progress->tahapan?->name ?? 'Tidak Diketahui') . ' dikonfirmasi dan selesai',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                // Notify users involved in the current permintaan about step completion
+                $involvedUsers = Managing::where('permintaan_id', $permintaanId)
+                    ->where('user_id', '!=', Auth::id())
+                    ->pluck('user_id');
+
+                foreach ($involvedUsers as $userId) {
+                    $notification = Notifications::create([
+                        'user_id' => $userId,
+                        'permintaan_id' => $permintaanId,
+                        'type' => 'step_confirmed',
+                        'message' => "Tahapan '{$progress->tahapan?->name}' telah selesai untuk permintaan '{$progress->permintaan->title}'",
+                        'data' => [
+                            'permintaan_id' => $permintaanId,
+                            'progress_id' => $progress->id,
+                            'tahapan_id' => $progress->permintaantahapan_id,
+                            'tahapan_name' => $progress->tahapan?->name ?? 'Tidak Diketahui',
+                        ],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    event(new NotificationCreated($notification));
+                }
+
+                // Broadcast PermintaanUpdated event
+                $permintaan = Permintaan::findOrFail($permintaanId);
+                $eventData = [
+                    'progress_id' => $progress->id,
+                    'next_progress_id' => $nextProgress ? $nextProgress->id : null,
+                    'percentage' => $progress->percentage,
+                    'status' => $progress->status,
+                ];
+                event(new PermintaanUpdated($permintaan, 'confirm_step', $eventData));
 
                 return response()->json([
                     'message' => 'Tahapan berhasil dikonfirmasi',
@@ -721,6 +814,11 @@ class PermintaanController extends Controller
                 ]);
             });
         } catch (\Exception $e) {
+            Log::error("Gagal mengonfirmasi tahapan", [
+                'permintaan_id' => $permintaanId,
+                'progress_id' => $request->permintaanprogressId,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Gagal mengonfirmasi tahapan: ' . $e->getMessage()], 500);
         }
     }
@@ -729,9 +827,9 @@ class PermintaanController extends Controller
     {
         try {
             $request->validate([
-                'description' => 'required|string',
+                'description' => 'required|string|max:1000',
                 'percentage_change' => 'required|numeric|min:0|max:100',
-                'file' => 'required|file|max:10240',
+                'file' => 'required|file|max:10240|mimes:pdf,doc,docx',
                 'permintaan_id' => 'required|exists:permintaans,id',
             ]);
 
@@ -739,6 +837,7 @@ class PermintaanController extends Controller
                 $progressConstrain = TahapanConstrain::findOrFail($constrainId);
                 $progress = Permintaanprogress::where('permintaan_id', $permintaanId)
                     ->where('permintaantahapan_id', $progressConstrain->permintaantahapan_id)
+                    ->with(['permintaan.project'])
                     ->firstOrFail();
 
                 if ($progress->permintaan_id != $permintaanId) {
@@ -749,15 +848,19 @@ class PermintaanController extends Controller
                     ->where('type', 'upload_file')
                     ->firstOrFail();
 
+                // Handle file upload
                 $file = $request->file('file');
                 $path = $file->store('dokumen', 'public');
                 $dokumenData = [
                     'filename' => $file->getClientOriginalName(),
                     'filepath' => $path,
                     'dokumenkategori_id' => $uploadFileConstrain->detail['dokumenkategori_id'] ?? 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ];
                 $dokumenId = DB::table('dokumens')->insertGetId($dokumenData);
 
+                // Handle progress update
                 $description = $request->input('description');
                 $percentageChange = (int) $request->input('percentage_change');
                 $currentPercentage = $progress->percentage ?? 0;
@@ -767,68 +870,73 @@ class PermintaanController extends Controller
                     'permintaanprogress_id' => $progress->id,
                     'description' => $description,
                     'percentage_change' => $percentageChange,
-                ]);
-
-                // Relasi wajib ke Progressreport
-                DB::table('dokumenrelasis')->insert([
                     'dokumen_id' => $dokumenId,
-                    'relasi_type' => 'App\Models\Progressreport',
-                    'relasi_id' => $progressReport->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
 
-                // Relasi wajib ke Permintaanprogress
-                DB::table('dokumenrelasis')->insert([
-                    'dokumen_id' => $dokumenId,
-                    'relasi_type' => 'App\Models\Permintaanprogress',
-                    'relasi_id' => $progress->id,
-                ]);
+                // Create document relations
+                $relations = [
+                    [
+                        'dokumen_id' => $dokumenId,
+                        'relasi_type' => 'App\Models\Progressreport',
+                        'relasi_id' => $progressReport->id,
+                    ],
+                    [
+                        'dokumen_id' => $dokumenId,
+                        'relasi_type' => 'App\Models\Permintaanprogress',
+                        'relasi_id' => $progress->id,
+                    ],
+                ];
 
-                // Relasi opsional berdasarkan detail['relasi']
+                // Optional relation based on detail['relasi']
                 $detail = $uploadFileConstrain->detail;
                 if (isset($detail['relasi'])) {
-                    $relasiType = $detail['relasi'];
-                    $relasiId = $this->resolveRelasiId($relasiType, $permintaanId, $detail);
+                    $relasiId = $this->resolveRelasiId($detail['relasi'], $permintaanId, $detail);
                     if ($relasiId) {
-                        DB::table('dokumenrelasis')->insert([
+                        $relations[] = [
                             'dokumen_id' => $dokumenId,
-                            'relasi_type' => $relasiType,
+                            'relasi_type' => $detail['relasi'],
                             'relasi_id' => $relasiId,
-                        ]);
+                        ];
                     }
                 }
+                DB::table('dokumenrelasis')->insert($relations);
 
-                $uploadFileDetail = $uploadFileConstrain->detail;
-                $isTesting = $uploadFileDetail['isTesting'] ?? false;
-
+                // Handle testing if applicable
+                $isTesting = $detail['isTesting'] ?? false;
+                $testingStatus = null;
                 if ($isTesting) {
                     $testingStatus = $newPercentage >= 100 ? 'Passed' : 'Process';
-
-                    $testingData = [
+                    DB::table('testings')->insert([
                         'project_id' => $progress->permintaan->project->id,
                         'progressreport_id' => $progressReport->id,
-                        'testingtype' => $uploadFileDetail['testingtype'] ?? 'Fungsi',
+                        'testingtype' => $detail['testingtype'] ?? 'Fungsi',
                         'status' => $testingStatus,
                         'created_at' => now(),
                         'updated_at' => now(),
-                    ];
-
-                    DB::table('testings')->insert($testingData);
+                    ]);
                 }
 
-                $progress->update(['percentage' => $newPercentage]);
+                // Update progress and constrain data
+                $progress->update([
+                    'percentage' => $newPercentage,
+                    'updated_at' => now(),
+                ]);
 
                 $progressConstrainData = Constraindata::firstOrCreate(
                     ['permintaan_id' => $progress->permintaan_id, 'tahapanconstrain_id' => $progressConstrain->id],
-                    ['status' => 'pending']
+                    ['status' => 'pending', 'created_at' => now()]
                 );
-                $progressConstrainData->update(['status' => 'fulfilled']);
+                $progressConstrainData->update(['status' => 'fulfilled', 'updated_at' => now()]);
 
                 $uploadFileConstrainData = Constraindata::firstOrCreate(
                     ['permintaan_id' => $progress->permintaan_id, 'tahapanconstrain_id' => $uploadFileConstrain->id],
-                    ['status' => 'pending']
+                    ['status' => 'pending', 'created_at' => now()]
                 );
-                $uploadFileConstrainData->update(['status' => 'fulfilled']);
+                $uploadFileConstrainData->update(['status' => 'fulfilled', 'updated_at' => now()]);
 
+                // Log activity
                 $logDescription = "Update progress dengan file: $description ($percentageChange%)";
                 if ($isTesting) {
                     $logDescription .= " - Testing " . ($testingStatus === 'Passed' ? 'Selesai' : 'Dalam Proses');
@@ -839,8 +947,21 @@ class PermintaanController extends Controller
                     'user_id' => Auth::id(),
                     'action' => 'Update',
                     'description' => $logDescription,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
 
+                // Broadcast PermintaanUpdated event
+                $eventData = [
+                    'progress_id' => $progress->id,
+                    'percentage' => $newPercentage,
+                    'constrain_id' => $progressConstrain->id,
+                    'target_data' => $dokumenData,
+                    'testing_status' => $isTesting ? $testingStatus : null,
+                ];
+                event(new PermintaanUpdated($progress->permintaan, 'update_constrain_with_file', $eventData));
+
+                // Prepare response
                 $responseData = [
                     'message' => 'Progress dan file berhasil diperbarui',
                     'target_data' => $dokumenData,
@@ -854,13 +975,18 @@ class PermintaanController extends Controller
                 if ($isTesting) {
                     $responseData['testing'] = [
                         'status' => $testingStatus,
-                        'testingtype' => $uploadFileDetail['testingtype'] ?? 'Fungsi',
+                        'testingtype' => $detail['testingtype'] ?? 'Fungsi',
                     ];
                 }
 
                 return response()->json($responseData);
             });
         } catch (\Exception $e) {
+            Log::error("Gagal memperbarui progress dengan file", [
+                'permintaan_id' => $permintaanId,
+                'constrain_id' => $constrainId,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Gagal memperbarui progress: ' . $e->getMessage()], 500);
         }
     }
@@ -962,10 +1088,12 @@ class PermintaanController extends Controller
         }
 
         // Tambahkan user ke managing
-        Managing::create([
+        $managing = Managing::create([
             'user_id' => $userToAdd->id,
             'permintaan_id' => $permintaan->id,
             'role' => 'member',
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
         // Log aktivitas
@@ -974,7 +1102,26 @@ class PermintaanController extends Controller
             'user_id' => $currentUser->id,
             'action' => 'Invite User',
             'description' => "Mengundang user: {$userToAdd->name}",
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
+
+        // Create notification for invited user
+        $notification = Notifications::create([
+            'user_id' => $userToAdd->id,
+            'permintaan_id' => $permintaan->id,
+            'type' => 'invite',
+            'message' => "Anda telah diundang untuk bergabung dengan permintaan '{$permintaan->title}' oleh {$currentUser->name}",
+            'data' => [
+                'permintaan_id' => $permintaan->id,
+                'invited_by' => $currentUser->id,
+                'invited_by_name' => $currentUser->name,
+            ],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        event(new NotificationCreated($notification));
 
         return response()->json(['message' => 'User berhasil diundang']);
     }
@@ -1022,6 +1169,7 @@ class PermintaanController extends Controller
                 }
 
                 $permintaan->update(['status' => 'On Progress']);
+
                 // Log aktivitas
                 $progress = Permintaanprogress::where('permintaan_id', $permintaanId)
                     ->where('permintaantahapan_id', 4) // Tahapan ke-4
@@ -1033,6 +1181,18 @@ class PermintaanController extends Controller
                     'action' => 'Update Rekomendasi',
                     'description' => "Rekomendasi: " . ($request->status === 'Approved' ? 'Disetujui' : 'Ditolak'),
                 ]);
+
+                // Broadcast event untuk rekomendasi
+                event(new PermintaanUpdated(
+                    $permintaan,
+                    'rekomendasi',
+                    [
+                        'id' => $rekomendasi->id,
+                        'status' => $rekomendasi->status,
+                        'created_at' => $rekomendasi->created_at->toISOString(),
+                        'progress_id' => $progress ? $progress->id : null,
+                    ]
+                ));
 
                 // Response
                 $responseData = [

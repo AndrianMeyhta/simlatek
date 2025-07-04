@@ -560,64 +560,6 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
                                         </span>
                                     )}
                                 </button>
-                                {isNotificationOpen && (
-                                    <div
-                                        className={`absolute left-0 mt-2 w-80 ${theme.cardBg} rounded-lg shadow-xl z-50 border ${theme.border} max-h-96 overflow-y-auto`}
-                                    >
-                                        <div className="p-4 border-b ${theme.border}">
-                                            <h3
-                                                className={`${theme.text} font-semibold`}
-                                            >
-                                                Notifikasi
-                                            </h3>
-                                        </div>
-                                        {notifications.length > 0 ? (
-                                            notifications.map(
-                                                (notification) => (
-                                                    <button
-                                                        key={notification.id}
-                                                        onClick={() =>
-                                                            !notification.is_read &&
-                                                            markAsRead(
-                                                                notification.id,
-                                                            )
-                                                        }
-                                                        className={`w-full text-left p-4 ${theme.hoverBg} transition-all ${
-                                                            notification.is_read
-                                                                ? theme.textSecondary
-                                                                : theme.text
-                                                        } border-b ${theme.border}`}
-                                                    >
-                                                        <p
-                                                            className={`text-sm font-medium ${
-                                                                notification.is_read
-                                                                    ? ""
-                                                                    : "font-bold"
-                                                            }`}
-                                                        >
-                                                            {
-                                                                notification.message
-                                                            }
-                                                        </p>
-                                                        <p
-                                                            className={`${theme.textSecondary} text-xs mt-1`}
-                                                        >
-                                                            {new Date(
-                                                                notification.created_at,
-                                                            ).toLocaleString()}
-                                                        </p>
-                                                    </button>
-                                                ),
-                                            )
-                                        ) : (
-                                            <div
-                                                className={`p-4 ${theme.textSecondary}`}
-                                            >
-                                                Tidak ada notifikasi
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     )}
@@ -730,6 +672,54 @@ const Layout: React.FC<LayoutProps> = ({ currentActive, children }) => {
             >
                 {children}
             </main>
+
+            {/* Pindahkan notifikasi ke sini */}
+            {isNotificationOpen && (
+                <div
+                    className={`fixed top-16 left-60 w-80 ${theme.cardBg} rounded-lg shadow-xl z-[1000] border ${theme.border} max-h-96 overflow-y-auto`}
+                >
+                    <div className="p-4 border-b ${theme.border}">
+                        <h3 className={`${theme.text} font-semibold`}>
+                            Notifikasi
+                        </h3>
+                    </div>
+                    {notifications.length > 0 ? (
+                        notifications.map((notification) => (
+                            <button
+                                key={notification.id}
+                                onClick={() =>
+                                    !notification.is_read &&
+                                    markAsRead(notification.id)
+                                }
+                                className={`w-full text-left p-4 ${theme.hoverBg} transition-all ${
+                                    notification.is_read
+                                        ? theme.textSecondary
+                                        : theme.text
+                                } border-b ${theme.border}`}
+                            >
+                                <p
+                                    className={`text-sm font-medium ${
+                                        notification.is_read ? "" : "font-bold"
+                                    }`}
+                                >
+                                    {notification.message}
+                                </p>
+                                <p
+                                    className={`${theme.textSecondary} text-xs mt-1`}
+                                >
+                                    {new Date(
+                                        notification.created_at,
+                                    ).toLocaleString()}
+                                </p>
+                            </button>
+                        ))
+                    ) : (
+                        <div className={`p-4 ${theme.textSecondary}`}>
+                            Tidak ada notifikasi
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Profile Settings Modal */}
             {isProfileModalOpen && (

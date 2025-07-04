@@ -110,8 +110,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </div>
 
                     {/* Statistik */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-auto-fit gap-4 animate-fade-in">
-                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4 transform hover:scale-105 transition">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-auto-fit gap-4">
+                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4">
                             <div className="p-4 bg-blue-200 dark:bg-blue-900 rounded-full">
                                 <svg
                                     className="w-8 h-8 text-blue-600 dark:text-blue-400"
@@ -136,7 +136,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </p>
                             </div>
                         </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4 transform hover:scale-105 transition">
+                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4">
                             <div className="p-4 bg-green-200 dark:bg-green-900 rounded-full">
                                 <svg
                                     className="w-8 h-8 text-green-600 dark:text-green-400"
@@ -162,7 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         {(roleId === 2 || roleId === 5) && (
-                            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4 transform hover:scale-105 transition">
+                            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4">
                                 <div className="p-4 bg-yellow-200 dark:bg-yellow-900 rounded-full">
                                     <svg
                                         className="w-8 h-8 text-yellow-600 dark:text-yellow-400"
@@ -190,7 +190,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         )}
                         {roleId !== 5 && (
                             <div
-                                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4 transform hover:scale-105 transition cursor-pointer"
+                                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center space-x-4 cursor-pointer"
                                 onClick={toggleModal}
                             >
                                 <div className="p-4 bg-purple-200 dark:bg-purple-900 rounded-full">

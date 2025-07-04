@@ -3,7 +3,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import Layout from "../../Layouts/layout";
 import { Head } from "@inertiajs/react";
-import { SkplData, permintaanprogress, PageProps } from "../../types";
+import { SkplData, permintaanprogress, PageProps, User } from "../../types";
 import echo from "../../echo";
 
 interface ProgressReport {
@@ -61,6 +61,13 @@ const ShowPermintaan: React.FC<PageProps> = ({
         rekomendasi?.status || "",
     );
     const [sortOrder, setSortOrder] = useState("asc");
+    const [involvedUsers, setInvolvedUsers] = useState<User[]>([]);
+    const [selectedInvolved, setSelectedInvolved] = useState<string[]>([]);
+    const [isLoadingInvolved, setIsLoadingInvolved] = useState(false);
+    const [isDeletingInvolved, setIsDeletingInvolved] = useState(false);
+    const [showInvolvedSection, setShowInvolvedSection] = useState(false);
+    const [involvedPage, setInvolvedPage] = useState(1);
+    const USERS_PER_PAGE = 5;
 
     // Effect untuk mengambil progress reports
     useEffect(() => {
@@ -1015,6 +1022,70 @@ const ShowPermintaan: React.FC<PageProps> = ({
         }
         return null;
     };
+
+    // Fetch involved users when modal opened
+    useEffect(() => {
+        if (showInviteModal) {
+            fetchInvolvedUsers();
+        }
+    }, [showInviteModal]);
+
+    const fetchInvolvedUsers = async () => {
+        setIsLoadingInvolved(true);
+        try {
+            const res = await axios.get(
+                `/permintaan/${permintaan.id}/involved-users`,
+            );
+            setInvolvedUsers(res.data.users || []);
+        } catch (e) {
+            setInvolvedUsers([]);
+        } finally {
+            setIsLoadingInvolved(false);
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (!selectedInvolved.length) return;
+        setIsDeletingInvolved(true);
+        try {
+            await axios.post(
+                `/permintaan/${permintaan.id}/batch-delete-users`,
+                {
+                    user_ids: selectedInvolved.map(Number),
+                },
+            );
+            Swal.fire("Berhasil", "User berhasil dihapus", "success");
+            setSelectedInvolved([]);
+            fetchInvolvedUsers();
+        } catch (e: any) {
+            Swal.fire(
+                "Gagal",
+                e?.response?.data?.message || "Gagal menghapus user",
+                "error",
+            );
+        } finally {
+            setIsDeletingInvolved(false);
+        }
+    };
+
+    // Filter involved users by search
+    const filteredInvolved: User[] = involvedUsers.filter((u: User) => {
+        const q = skillSearch.toLowerCase();
+        return (
+            u.name.toLowerCase().includes(q) ||
+            (u.email && u.email.toLowerCase().includes(q)) ||
+            (u.role && u.role.toLowerCase().includes(q))
+        );
+    });
+
+    // Pagination logic for involved users
+    const totalInvolvedPages = Math.ceil(filteredInvolved.length / USERS_PER_PAGE);
+    const paginatedInvolved = filteredInvolved.slice((involvedPage - 1) * USERS_PER_PAGE, involvedPage * USERS_PER_PAGE);
+
+    // Reset page when search or section toggled
+    useEffect(() => {
+        setInvolvedPage(1);
+    }, [skillSearch, showInvolvedSection]);
 
     return (
         <>
@@ -2297,219 +2368,348 @@ const ShowPermintaan: React.FC<PageProps> = ({
                     {showInviteModal && (
                         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full animate-fadeIn border border-gray-200 dark:border-gray-700">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                                    <svg
-                                        className="w-5 h-5 mr-2 text-blue-500"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2"
-                                            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                                        />
-                                    </svg>
-                                    Undang Pengguna
-                                </h3>
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                        Cari berdasarkan nama atau skill
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={skillSearch}
-                                        onChange={(e) =>
-                                            setSkillSearch(e.target.value)
-                                        }
-                                        className="w-full p-2.5 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150"
-                                        placeholder="Ketik nama, skill, atau kategori..."
-                                    />
-                                </div>
-                                <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 dark:border-gray-600 rounded-md">
-                                    <table className="w-full text-sm text-gray-700 dark:text-gray-300">
-                                        <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
-                                            <tr>
-                                                <th className="p-2 text-left">
-                                                    <input
-                                                        type="checkbox"
-                                                        onChange={(e) => {
-                                                            const checked =
-                                                                e.target
-                                                                    .checked;
-                                                            setSelectedUser(
-                                                                checked
-                                                                    ? filteredUsers.map(
-                                                                          (u) =>
-                                                                              u.id.toString(),
-                                                                      )
-                                                                    : [],
-                                                            );
-                                                        }}
-                                                        checked={
-                                                            filteredUsers.length >
-                                                                0 &&
-                                                            filteredUsers.every(
-                                                                (u) =>
-                                                                    selectedUser.includes(
-                                                                        u.id.toString(),
-                                                                    ),
-                                                            )
-                                                        }
-                                                    />
-                                                </th>
-                                                <th className="p-2 text-left">
-                                                    Nama
-                                                </th>
-                                                <th className="p-2 text-left">
-                                                    Skill
-                                                </th>
-                                                <th className="p-2 text-left">
-                                                    Jumlah Aplikasi
-                                                    <button
-                                                        onClick={() => {
-                                                            setFilteredUsers(
-                                                                [
-                                                                    ...filteredUsers,
-                                                                ].sort(
-                                                                    (a, b) =>
-                                                                        sortOrder ===
-                                                                        "asc"
-                                                                            ? a.application_count -
-                                                                              b.application_count
-                                                                            : b.application_count -
-                                                                              a.application_count,
-                                                                ),
-                                                            );
-                                                            setSortOrder(
-                                                                sortOrder ===
-                                                                    "asc"
-                                                                    ? "desc"
-                                                                    : "asc",
-                                                            );
-                                                        }}
-                                                        className="ml-2 text-blue-500 hover:text-blue-700"
-                                                    >
-                                                        {sortOrder === "asc"
-                                                            ? "↑"
-                                                            : "↓"}
-                                                    </button>
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredUsers.length > 0 ? (
-                                                filteredUsers.map((user) => (
-                                                    <tr
-                                                        key={user.id}
-                                                        className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                    >
-                                                        <td className="p-2">
+                                {/* Section Invite User */}
+                                {!showInvolvedSection && (
+                                    <>
+                                        <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-2 mt-4 flex items-center">
+                                            <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                            Undang Pengguna Baru
+                                        </h3>
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cari berdasarkan nama atau skill</label>
+                                            <input
+                                                type="text"
+                                                value={skillSearch}
+                                                onChange={(e) => setSkillSearch(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150"
+                                                placeholder="Ketik nama, skill, atau kategori..."
+                                            />
+                                        </div>
+                                        <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 dark:border-gray-600 rounded-md">
+                                            <table className="w-full text-sm text-gray-700 dark:text-gray-300">
+                                                <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
+                                                    <tr>
+                                                        <th className="p-2 text-left">
                                                             <input
                                                                 type="checkbox"
-                                                                value={user.id}
-                                                                checked={selectedUser.includes(
-                                                                    user.id.toString(),
-                                                                )}
-                                                                onChange={(
-                                                                    e,
-                                                                ) => {
-                                                                    const value =
+                                                                onChange={(e) => {
+                                                                    const checked =
                                                                         e.target
-                                                                            .value;
+                                                                            .checked;
                                                                     setSelectedUser(
-                                                                        (
-                                                                            prev,
-                                                                        ) =>
-                                                                            prev
-                                                                                ? e
-                                                                                      .target
-                                                                                      .checked
-                                                                                    ? [
-                                                                                          ...prev,
-                                                                                          value,
-                                                                                      ]
-                                                                                    : prev.filter(
-                                                                                          (
-                                                                                              id,
-                                                                                          ) =>
-                                                                                              id !==
-                                                                                              value,
-                                                                                      )
-                                                                                : [
-                                                                                      value,
-                                                                                  ],
+                                                                        checked
+                                                                            ? filteredUsers.map(
+                                                                                  (u) =>
+                                                                                      u.id.toString(),
+                                                                              )
+                                                                            : [],
                                                                     );
                                                                 }}
+                                                                checked={
+                                                                    filteredUsers.length >
+                                                                        0 &&
+                                                                    filteredUsers.every(
+                                                                        (u) =>
+                                                                            selectedUser.includes(
+                                                                                u.id.toString(),
+                                                                            ),
+                                                                    )
+                                                                }
                                                             />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            {user.name}
-                                                        </td>
-                                                        <td className="p-2">
-                                                            {user.skills
-                                                                ?.map(
-                                                                    (s) =>
-                                                                        s.name,
-                                                                )
-                                                                .join(", ") ||
-                                                                "Tidak ada skill"}
-                                                        </td>
-                                                        <td className="p-2">
-                                                            {
-                                                                user.application_count
-                                                            }
-                                                        </td>
+                                                        </th>
+                                                        <th className="p-2 text-left">
+                                                            Nama
+                                                        </th>
+                                                        <th className="p-2 text-left">
+                                                            Skill
+                                                        </th>
+                                                        <th className="p-2 text-left">
+                                                            Jumlah Aplikasi
+                                                            <button
+                                                                onClick={() => {
+                                                                    setFilteredUsers(
+                                                                        [
+                                                                            ...filteredUsers,
+                                                                        ].sort(
+                                                                            (a, b) =>
+                                                                                sortOrder ===
+                                                                                "asc"
+                                                                                    ? a.application_count -
+                                                                                      b.application_count
+                                                                                    : b.application_count -
+                                                                                      a.application_count,
+                                                                        ),
+                                                                    );
+                                                                    setSortOrder(
+                                                                        sortOrder ===
+                                                                            "asc"
+                                                                            ? "desc"
+                                                                            : "asc",
+                                                                    );
+                                                                }}
+                                                                className="ml-2 text-blue-500 hover:text-blue-700"
+                                                            >
+                                                                {sortOrder === "asc"
+                                                                    ? "↑"
+                                                                    : "↓"}
+                                                            </button>
+                                                        </th>
                                                     </tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td
-                                                        colSpan={4}
-                                                        className="p-2 text-center text-gray-500"
-                                                    >
-                                                        Tidak ada pengguna yang
-                                                        ditemukan
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="flex justify-end space-x-2">
+                                                </thead>
+                                                <tbody>
+                                                    {filteredUsers.length > 0 ? (
+                                                        filteredUsers.map((user) => (
+                                                            <tr
+                                                                key={user.id}
+                                                                className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                            >
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        value={user.id}
+                                                                        checked={selectedUser.includes(
+                                                                            user.id.toString(),
+                                                                        )}
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) => {
+                                                                            const value =
+                                                                                e.target
+                                                                                    .value;
+                                                                            setSelectedUser(
+                                                                                (
+                                                                                    prev,
+                                                                                ) =>
+                                                                                    prev
+                                                                                        ? e
+                                                                                              .target
+                                                                                              .checked
+                                                                                            ? [
+                                                                                                  ...prev,
+                                                                                                  value,
+                                                                                              ]
+                                                                                            : prev.filter(
+                                                                                                  (
+                                                                                                      id,
+                                                                                                  ) =>
+                                                                                                  id !==
+                                                                                                  value,
+                                                                                              )
+                                                                                        : [
+                                                                                              value,
+                                                                                          ],
+                                                                                );
+                                                                        }}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    {user.name}
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    {user.skills
+                                                                        ?.map(
+                                                                            (s) =>
+                                                                                s.name,
+                                                                        )
+                                                                        .join(", ") ||
+                                                                        "Tidak ada skill"}
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    {
+                                                                        user.application_count
+                                                                    }
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    ) : (
+                                                        <tr>
+                                                            <td
+                                                                colSpan={4}
+                                                                className="p-2 text-center text-gray-500"
+                                                            >
+                                                                Tidak ada pengguna yang
+                                                                ditemukan
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="flex justify-end space-x-2">
+                                            <button
+                                                onClick={() =>
+                                                    setShowInviteModal(false)
+                                                }
+                                                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                            >
+                                                Batal
+                                            </button>
+                                            <button
+                                                onClick={handleInviteUser}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 transition-colors duration-150 flex items-center"
+                                                disabled={
+                                                    !selectedUser ||
+                                                    selectedUser.length === 0
+                                                }
+                                            >
+                                                <svg
+                                                    className="w-4 h-4 mr-1.5"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth="2"
+                                                        d="M5 13l4 4L19 7"
+                                                    />
+                                                </svg>
+                                                Undang
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                                {/* Toggle button */}
+                                <div className="flex justify-between items-center mt-6 mb-2">
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                        </svg>
+                                        Manajemen User Terlibat
+                                    </h3>
                                     <button
-                                        onClick={() =>
-                                            setShowInviteModal(false)
-                                        }
-                                        className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
-                                    >
-                                        Batal
-                                    </button>
-                                    <button
-                                        onClick={handleInviteUser}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 transition-colors duration-150 flex items-center"
-                                        disabled={
-                                            !selectedUser ||
-                                            selectedUser.length === 0
-                                        }
+                                        onClick={() => setShowInvolvedSection((prev) => !prev)}
+                                        className="flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
                                     >
                                         <svg
-                                            className="w-4 h-4 mr-1.5"
+                                            className={`w-5 h-5 mr-1 transition-transform duration-200 ${showInvolvedSection ? 'rotate-180' : ''}`}
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
                                         >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth="2"
-                                                d="M5 13l4 4L19 7"
-                                            />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                                         </svg>
-                                        Undang
+                                        {showInvolvedSection ? 'Sembunyikan' : 'Lihat'} User Terlibat
                                     </button>
                                 </div>
+                                {/* Section Involved Users */}
+                                {showInvolvedSection && (
+                                    <div className="mt-2">
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cari user terlibat</label>
+                                            <input
+                                                type="text"
+                                                value={skillSearch}
+                                                onChange={(e) => setSkillSearch(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-150"
+                                                placeholder="Ketik nama, email, atau role..."
+                                            />
+                                        </div>
+                                        <div className="max-h-60 overflow-y-auto mb-4 border border-gray-200 dark:border-gray-600 rounded-md">
+                                            <table className="w-full text-sm text-gray-700 dark:text-gray-300">
+                                                <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
+                                                    <tr>
+                                                        <th className="p-2 text-left">
+                                                            <input
+                                                                type="checkbox"
+                                                                onChange={(e) => {
+                                                                    const checked = e.target.checked;
+                                                                    setSelectedInvolved(
+                                                                        checked ? paginatedInvolved.map((u) => u.id.toString()) : [],
+                                                                    );
+                                                                }}
+                                                                checked={paginatedInvolved.length > 0 && paginatedInvolved.every((u) => selectedInvolved.includes(u.id.toString()))}
+                                                            />
+                                                        </th>
+                                                        <th className="p-2 text-left">Nama</th>
+                                                        <th className="p-2 text-left">Email</th>
+                                                        <th className="p-2 text-left">Role</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {isLoadingInvolved ? (
+                                                        <tr><td colSpan={4} className="p-2 text-center">Memuat...</td></tr>
+                                                    ) : paginatedInvolved.length > 0 ? (
+                                                        paginatedInvolved.map((user) => (
+                                                            <tr key={user.id} className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                                <td className="p-2">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        value={user.id}
+                                                                        checked={selectedInvolved.includes(user.id.toString())}
+                                                                        onChange={(e) => {
+                                                                            const value = e.target.value;
+                                                                            setSelectedInvolved((prev) =>
+                                                                                prev
+                                                                                    ? e.target.checked
+                                                                                        ? [...prev, value]
+                                                                                        : prev.filter((id) => id !== value)
+                                                                                    : [value],
+                                                                            );
+                                                                        }}
+                                                                    />
+                                                                </td>
+                                                                <td className="p-2">{user.name}</td>
+                                                                <td className="p-2">{user.email}</td>
+                                                                <td className="p-2">{user.role}</td>
+                                                            </tr>
+                                                        ))
+                                                    ) : (
+                                                        <tr><td colSpan={4} className="p-2 text-center text-gray-500">Tidak ada user terlibat</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {/* Pagination controls */}
+                                        {totalInvolvedPages > 1 && (
+                                            <div className="flex justify-center items-center gap-2 mb-4">
+                                                <button
+                                                    onClick={() => setInvolvedPage((p) => Math.max(1, p - 1))}
+                                                    disabled={involvedPage === 1}
+                                                    className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 disabled:opacity-50"
+                                                >
+                                                    Prev
+                                                </button>
+                                                <span className="text-sm text-gray-700 dark:text-gray-200">{involvedPage} / {totalInvolvedPages}</span>
+                                                <button
+                                                    onClick={() => setInvolvedPage((p) => Math.min(totalInvolvedPages, p + 1))}
+                                                    disabled={involvedPage === totalInvolvedPages}
+                                                    className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 disabled:opacity-50"
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-center mb-4">
+                                            <button
+                                                onClick={handleBatchDelete}
+                                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-red-400 transition-colors duration-150 flex items-center"
+                                                disabled={selectedInvolved.length === 0 || isDeletingInvolved}
+                                            >
+                                                {isDeletingInvolved ? (
+                                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                )}
+                                                Hapus User Terpilih
+                                            </button>
+                                            <button
+                                                onClick={() => setShowInviteModal(false)}
+                                                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
+                                            >
+                                                Tutup
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

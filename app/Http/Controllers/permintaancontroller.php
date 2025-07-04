@@ -1379,4 +1379,87 @@ class PermintaanController extends Controller
             'userName' => $currentUser->name,
         ]);
     }
+
+    /**
+     * List all users involved in a permintaan (team members)
+     */
+    public function listInvolvedUsers($permintaanId)
+    {
+        $currentUser = Auth::user();
+        $permintaan = Permintaan::findOrFail($permintaanId);
+
+        // Only involved users can see the list
+        $isInvolved = Managing::where('permintaan_id', $permintaan->id)
+            ->where('user_id', $currentUser->id)
+            ->exists();
+        if (!$isInvolved) {
+            return response()->json(['message' => 'Anda tidak memiliki akses ke permintaan ini'], 403);
+        }
+
+        $managings = Managing::where('permintaan_id', $permintaan->id)->with('user')->get();
+        $users = $managings->map(function ($managing) {
+            return [
+                'id' => $managing->user->id,
+                'name' => $managing->user->name,
+                'email' => $managing->user->email,
+                'role_id' => $managing->user->role_id,
+                'role' => $managing->role,
+                'managing_id' => $managing->id,
+            ];
+        });
+        return response()->json(['users' => $users]);
+    }
+
+    /**
+     * Batch delete involved users from a permintaan
+     */
+    public function batchDeleteInvolvedUsers(Request $request, $permintaanId)
+    {
+        $currentUser = Auth::user();
+        $permintaan = Permintaan::findOrFail($permintaanId);
+
+        // OPD cannot delete anyone
+        if ($currentUser->role_id === 1) {
+            return response()->json(['message' => 'Anda tidak memiliki izin untuk menghapus user'], 403);
+        }
+
+        $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+        $userIds = $request->user_ids;
+
+        $deleted = [];
+        foreach ($userIds as $userId) {
+            $userToDelete = User::find($userId);
+            if (!$userToDelete) continue;
+
+            // Only superadmin can delete any role, others can only delete same role
+            if ($currentUser->role_id !== 5 && $currentUser->role_id !== $userToDelete->role_id) {
+                continue;
+            }
+
+            $managing = Managing::where('permintaan_id', $permintaan->id)
+                ->where('user_id', $userToDelete->id)
+                ->first();
+            if ($managing) {
+                $managing->delete();
+                $deleted[] = $userToDelete->id;
+
+                // Log aktivitas
+                Logaktivitas::create([
+                    'permintaanprogress_id' => $permintaan->progress->first()->id,
+                    'user_id' => $currentUser->id,
+                    'action' => 'Delete User',
+                    'description' => "Menghapus user: {$userToDelete->name}",
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+        return response()->json([
+            'message' => 'User berhasil dihapus',
+            'deleted_user_ids' => $deleted,
+        ]);
+    }
 }

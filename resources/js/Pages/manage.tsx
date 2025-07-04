@@ -18,16 +18,9 @@ import {
     Kategori,
     ManageProps,
     RbieRule,
-    RbieExtraction,
 } from ".././types";
 
-type EntityData =
-    | Role[]
-    | User[]
-    | Tahapan[]
-    | Kategori[]
-    | RbieRule[]
-    | RbieExtraction[];
+type EntityData = Role[] | User[] | Tahapan[] | Kategori[] | RbieRule[];
 
 // Fetch function with typed return
 const fetchEntities = async (entity: string): Promise<EntityData> => {
@@ -56,7 +49,6 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
         { value: "permissions", label: "Permissions" },
         { value: "kategoris", label: "Dokumen Kategori" },
         { value: "rbierules", label: "RBIE Rules" }, // Added rbierules
-        { value: "rbieextractions", label: "RBIE Extractions" }, // Added rbieextractions
     ];
 
     const columns: Record<string, Column[]> = {
@@ -69,11 +61,6 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
         rbierules: [
             { key: "name", label: "Name" },
             { key: "tahapanconstrain_id", label: "Tahapan Constrain ID" },
-        ],
-        rbieextractions: [
-            { key: "permintaan_id", label: "Permintaan ID" },
-            { key: "dokumen_id", label: "Dokumen ID" },
-            { key: "dokumenrelasi_id", label: "Dokumen Relasi ID" },
         ],
     };
 
@@ -102,7 +89,6 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
                 type: "textarea",
             },
         ],
-        rbieextractions: [], // No fields for read-only entity
     };
 
     const mutation = useMutation({
@@ -202,8 +188,6 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
         );
     };
 
-    const isReadOnly = currentEntity === "rbieextractions";
-
     return (
         <>
             <Head title="Simlatek - Manage" />
@@ -227,7 +211,7 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
                                     onChange={setCurrentEntity}
                                     className="w-full sm:w-64 rounded-lg h-7 pl-4 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400"
                                 />
-                                {!isReadOnly && (
+                                {
                                     <button
                                         onClick={() => openModal("add")}
                                         className={`px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 dark:bg-cyan-500 dark:hover:bg-cyan-600 transition-colors duration-200 flex items-center gap-2 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 dark:focus:ring-offset-gray-800
@@ -247,7 +231,7 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
                                         </svg>
                                         Tambah Baru
                                     </button>
-                                )}
+                                }
                             </div>
 
                             {isLoading ? (
@@ -264,23 +248,16 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
                                     <GenericTable
                                         columns={columns[currentEntity]}
                                         data={data || []}
-                                        onEdit={
-                                            !isReadOnly
-                                                ? (item) =>
-                                                      openModal("edit", item)
-                                                : undefined
+                                        onEdit={(item) =>
+                                            openModal("edit", item)
                                         }
-                                        onDelete={
-                                            !isReadOnly
-                                                ? deleteRecord
-                                                : undefined
-                                        }
+                                        onDelete={deleteRecord}
                                     />
                                 </div>
                             )}
                         </div>
 
-                        {!isReadOnly && (
+                        {
                             <CrudModal
                                 show={showModal}
                                 onClose={closeModal}
@@ -296,7 +273,7 @@ const Manage: React.FC<ManageProps> = ({ initialData }) => {
                                 onSubmit={submitForm}
                                 fields={fields[currentEntity]}
                             />
-                        )}
+                        }
                     </div>
                 </div>
             </Layout>

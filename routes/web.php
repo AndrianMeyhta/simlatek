@@ -53,6 +53,8 @@ Route::middleware(['auth', UserSessionMiddleware::class])->group(function () {
         Route::post('/{permintaan}/constrain/{constrain}/with-file', 'updateConstrainWithFile');
         Route::get('/{permintaan}/progress-reports/{constrain}', 'getProgressReports');
         Route::get('/{permintaanId}/skpl/{tahapanconstrainId?}', 'showSkpl')->name('permintaan.skpl');
+        Route::get('/{permintaan}/involved-users', 'listInvolvedUsers')->name('permintaan.involved-users');
+        Route::post('/{permintaan}/batch-delete-users', 'batchDeleteInvolvedUsers')->name('permintaan.batch-delete-users');
     });
 
     Route::get('/active-permintaans', [PermintaanController::class, 'getActivePermintaans'])->name('permintaan.active-permintaan');
